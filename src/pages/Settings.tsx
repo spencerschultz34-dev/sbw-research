@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
 import { User, SlidersHorizontal, Newspaper, Rss, Terminal, ExternalLink, Tags, LogOut, Menu as MenuIcon, ChevronRight, Copy, Trash2 } from 'lucide-react'
 import { useStore } from '../store'
+import { useAuth } from '../auth'
+import { fmtDate } from '../format'
 import { Avatar, Modal, Segmented, Select, Toggle } from '../components/ui'
 
 const LANGS = ['English', 'Arabic', 'Bosnian', 'Bulgarian', 'Chinese', 'Czech', 'Danish', 'Dutch', 'Estonian', 'Finnish', 'French', 'German', 'Italian', 'Japanese', 'Korean', 'Norwegian', 'Polish', 'Portuguese', 'Spanish', 'Swedish']
@@ -12,6 +14,7 @@ export function SettingsPage() {
   const [side, setSide] = useState(true)
   const store = useStore()
   const [out, setOut] = useState(false)
+  const auth = useAuth()
   return (
     <div className="page">
       <div className="page-head"><button className="ghost-icon" aria-label="Toggle settings menu" onClick={() => setSide(!side)}><MenuIcon size={16} /></button><span className="page-title">Settings</span></div>
@@ -40,12 +43,21 @@ export function SettingsPage() {
         </div>
       </div>
       {out && (
-        <Modal title="Log out?" onClose={() => setOut(false)} footer={<>
-          <button className="btn btn-quiet" onClick={() => setOut(false)}>Cancel</button>
-          <button className="btn btn-light" onClick={() => { store.resetDemo(); setOut(false); store.notify('Sample data reset') }}>Reset sample data</button>
-        </>}>
-          <p>This prototype has no accounts yet. You can reset the sample data to how it started instead.</p>
-        </Modal>
+        auth.cloudEnabled ? (
+          <Modal title="Log out?" onClose={() => setOut(false)} footer={<>
+            <button className="btn btn-quiet" onClick={() => setOut(false)}>Cancel</button>
+            <button className="btn btn-light" onClick={() => { auth.signOut() }}>Log out</button>
+          </>}>
+            <p>Your watchlists, saved items and settings stay in your account for next time.</p>
+          </Modal>
+        ) : (
+          <Modal title="Log out?" onClose={() => setOut(false)} footer={<>
+            <button className="btn btn-quiet" onClick={() => setOut(false)}>Cancel</button>
+            <button className="btn btn-light" onClick={() => { store.resetDemo(); setOut(false); store.notify('Sample data reset') }}>Reset sample data</button>
+          </>}>
+            <p>Accounts are not switched on for this copy of the app. You can reset the sample data to how it started instead.</p>
+          </Modal>
+        )
       )}
     </div>
   )
@@ -56,21 +68,37 @@ function Row({ label, sub, children, htmlFor }: { label: string; sub?: string; c
 }
 
 function Profile() {
-  const { prefs, set } = useStore()
+  const { prefs, set, syncState, notify } = useStore()
+  const auth = useAuth()
+  const [pwOpen, setPwOpen] = useState(false)
+  const [pw, setPw] = useState('')
+  const [pwErr, setPwErr] = useState<string | null>(null)
   const p = (k: keyof typeof prefs) => (v: string) => set('prefs', (x) => ({ ...x, [k]: v }))
+  const syncLabel = { local: 'Saved in this browser only', loading: 'Loading your account…', synced: 'Saved to your account', error: 'Could not reach your account, changes are kept in this browser' }[syncState]
   return (
     <>
-      <div className="row between"><h2 className="col-title">Profile</h2><span className="muted small">User since 6 Aug, 2026</span></div>
+      <div className="row between"><h2 className="col-title">Profile</h2><span className="muted small">{auth.createdAt ? `User since ${fmtDate(auth.createdAt)}` : syncLabel}</span></div>
+      {auth.cloudEnabled && <p className="muted small">{syncLabel}</p>}
       <div className="card set-card">
         <Row label="Profile picture"><Avatar name={`${prefs.firstName} ${prefs.lastName}`} size={32} color="var(--gold)" /></Row>
         <Row label="Full name" htmlFor="first"><input id="first" className="input sm" value={prefs.firstName} onChange={(e) => p('firstName')(e.target.value)} /><input id="last" className="input sm" aria-label="Last name" value={prefs.lastName} onChange={(e) => p('lastName')(e.target.value)} /></Row>
-        <Row label="E-mail" htmlFor="email"><input id="email" className="input" value="spencer@sbw-invest.com" readOnly /></Row>
+        <Row label="E-mail" htmlFor="email"><input id="email" className="input" value={auth.email ?? "demo@sbw-invest.com"} readOnly /></Row>
         <Row label="Phone" htmlFor="phone"><input id="phone" className="input" placeholder="Enter phone number" value={prefs.phone} onChange={(e) => p('phone')(e.target.value)} /></Row>
         <Row label="Occupation"><Select id="occ" value={prefs.occupation} options={['Buy side', 'Sell side', 'Investor relations', 'Corporate', 'Private investor', 'Other']} onChange={p('occupation')} width={180} /></Row>
       </div>
       <h3 className="sec-title">Contacts</h3>
       <div className="card set-card"><div className="set-row clickable"><span className="row gap8"><Avatar name="Account Team" size={24} /><b>SBW Research support</b><span className="muted">Account team</span></span><ChevronRight size={15} className="muted" /></div></div>
-      <div className="card set-card"><Row label="Password"><button className="btn btn-quiet">Change password<ExternalLink size={13} /></button></Row></div>
+      <div className="card set-card"><Row label="Password"><button className="btn btn-quiet" disabled={!auth.cloudEnabled} title={auth.cloudEnabled ? undefined : 'Accounts are not switched on'} onClick={() => { setPw(''); setPwErr(null); setPwOpen(true) }}>Change password</button></Row></div>
+      {pwOpen && (
+        <Modal title="Change password" onClose={() => setPwOpen(false)} footer={<>
+          <button className="btn btn-quiet" onClick={() => setPwOpen(false)}>Cancel</button>
+          <button className="btn btn-light" disabled={pw.length < 8} onClick={async () => { const e = await auth.changePassword(pw); if (e) setPwErr(e); else { setPwOpen(false); notify('Password changed') } }}>Save</button>
+        </>}>
+          <label className="field-label" htmlFor="new-pw">New password (at least 8 characters)</label>
+          <input id="new-pw" className="input" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+          {pwErr && <p className="auth-msg err">{pwErr}</p>}
+        </Modal>
+      )}
     </>
   )
 }

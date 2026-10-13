@@ -650,3 +650,13 @@ svg .axis { fill: var(--muted); font: 9px var(--ui); }
 }
 .set-ctl { min-width: 0; }
 .set-ctl .select { max-width: 100%; min-width: 0; }
+
+/* ---------- sign-in ---------- */
+.auth-page { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--bg); color: var(--text); }
+.auth-card { width: 380px; max-width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 28px 24px; display: flex; flex-direction: column; }
+.auth-card h1 { font-size: 20px; margin: 22px 0 4px; }
+.auth-submit { margin-top: 18px; height: 38px; }
+.auth-links { display: flex; justify-content: space-between; margin-top: 14px; }
+.auth-msg { margin-top: 12px; font-size: 13px; padding: 8px 10px; border-radius: 7px; }
+.auth-msg.ok { background: color-mix(in srgb, var(--pos) 14%, transparent); }
+.auth-msg.err { background: color-mix(in srgb, var(--neg) 14%, transparent); }

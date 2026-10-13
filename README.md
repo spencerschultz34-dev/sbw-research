@@ -22,6 +22,18 @@ npm run dev        # opens on http://localhost:5173
 
 Every push to `main` redeploys automatically. Netlify and Cloudflare Pages work the same way.
 
+## Turn on accounts (Supabase, free tier)
+
+Without this, the app runs as a demo and saves everything in the browser. With it, people sign in and their watchlists, saved items, workspaces, alerts, chats and settings are stored in their account.
+
+1. Create a project at [supabase.com](https://supabase.com) (sign in with GitHub).
+2. Open **SQL Editor → New query**, paste the contents of `supabase/setup.sql` and press **Run**.
+3. Open **Authentication → URL Configuration** and set **Site URL** to your app address (e.g. `https://sbwresearch.vercel.app`).
+4. Open **Project Settings → API** and copy the **Project URL** and the **anon public** key.
+5. In Vercel, open the project's **Settings → Environment Variables** and add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` with those values, then redeploy.
+
+To keep sign-ups to your team only, turn off **Authentication → Providers → Email → Allow new users to sign up** after your accounts exist, and invite people from **Authentication → Users**.
+
 ## Project layout
 
 | Path | What it holds |
@@ -32,7 +44,9 @@ Every push to `main` redeploys automatically. Netlify and Cloudflare Pages work 
 | `src/pages/*` | Home, Calendar, Search, Chat, Saved, Workspaces, Watchlists, Alerts, Settings |
 | `src/data/*` | Sample companies and events, swap for a real data source |
 | `src/chatEngine.ts` | Local stand-in for AI answers with citations |
-| `src/store.tsx` | App state, saved in the browser (localStorage) |
+| `src/store.tsx` | App state, saved in the browser and, when signed in, to the account |
+| `src/auth.tsx`, `src/cloud.ts` | Sign-in screen and Supabase sync |
+| `supabase/setup.sql` | Database table and access rules for accounts |
 
 ## Going live with real data
 

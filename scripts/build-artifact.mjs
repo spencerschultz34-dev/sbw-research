@@ -12,7 +12,7 @@ await build({
   target: 'es2020',
   jsx: 'automatic',
   outfile: `${out}/app.js`,
-  define: { __ARTIFACT__: 'true', 'process.env.NODE_ENV': '"production"' },
+  define: { __ARTIFACT__: 'true', 'process.env.NODE_ENV': '"production"', 'import.meta.env': '{}' },
   loader: { '.css': 'css' },
   legalComments: 'none',
 })

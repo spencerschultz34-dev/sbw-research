@@ -1,3 +1,5 @@
+import { loadCloudState, saveCloudState } from './cloud'
+import { useAuth } from './auth'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { EVENTS, eventById, LIVE_OFFSET_SEC, TODAY } from './data'
 import type { Answer } from './chatEngine'
@@ -143,6 +145,7 @@ interface Store extends AppState {
   setQuickOpen: (v: boolean) => void
   isFollowed: (cid: string) => boolean
   resetDemo: () => void
+  syncState: 'local' | 'loading' | 'synced' | 'error'
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -159,6 +162,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* ignore */ }
   }, [state])
+
+  // Signed-in users: load their saved state once, then save changes back (debounced).
+  const { userId } = useAuth()
+  const [syncedFor, setSyncedFor] = useState<string | null>(null)
+  const [syncError, setSyncError] = useState(false)
+  useEffect(() => {
+    if (!userId) { setSyncedFor(null); return }
+    let cancelled = false
+    loadCloudState(userId)
+      .then(async (data) => {
+        if (cancelled) return
+        if (data) setState({ ...DEFAULT_STATE, ...(data as Partial<AppState>) })
+        else await saveCloudState(userId, state)
+        setSyncedFor(userId)
+      })
+      .catch(() => { if (!cancelled) setSyncError(true) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+  useEffect(() => {
+    if (!userId || syncedFor !== userId) return
+    const t = window.setTimeout(() => {
+      saveCloudState(userId, state).then(() => setSyncError(false)).catch(() => setSyncError(true))
+    }, 1200)
+    return () => window.clearTimeout(t)
+  }, [state, userId, syncedFor])
 
   const set: Store['set'] = useCallback((k, v) => {
     setState((s) => ({ ...s, [k]: typeof v === 'function' ? (v as (p: unknown) => unknown)(s[k]) : v }))
@@ -181,6 +210,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toast, notify,
     quickOpen, setQuickOpen,
     isFollowed: (cid) => state.follows.includes(cid),
+    syncState: !userId ? 'local' : syncError ? 'error' : syncedFor === userId ? 'synced' : 'loading',
     resetDemo: () => { try { localStorage.removeItem(KEY) } catch { /* ignore */ } setState(DEFAULT_STATE) },
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

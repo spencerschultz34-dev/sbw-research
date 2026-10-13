@@ -1,5 +1,6 @@
 import { HashRouter, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { PlayerProvider, StoreProvider } from './store'
+import { AuthGate } from './auth'
 import { Shell } from './components/Shell'
 import { Home } from './pages/Home'
 import { CompanyPage } from './pages/Company'
@@ -19,6 +20,7 @@ const Router = __ARTIFACT__ ? MemoryRouter : HashRouter
 
 export function App() {
   return (
+    <AuthGate>
     <StoreProvider>
       <PlayerProvider>
         <Router>
@@ -49,5 +51,6 @@ export function App() {
         </Router>
       </PlayerProvider>
     </StoreProvider>
+    </AuthGate>
   )
 }
