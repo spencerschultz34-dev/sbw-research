@@ -34,6 +34,12 @@ Without this, the app runs as a demo and saves everything in the browser. With i
 
 To keep sign-ups to your team only, turn off **Authentication → Providers → Email → Allow new users to sign up** after your accounts exist, and invite people from **Authentication → Users**.
 
+## Real US company data (SEC EDGAR)
+
+On the hosted site, press Ctrl/Cmd K and type any US ticker or company name. Results under **US companies · SEC filings** open a page with the company profile, quarterly revenue, operating income, net income and EPS, and every recent SEC filing linked to sec.gov.
+
+This uses the free SEC EDGAR APIs through `api/sec.ts`, a Vercel Edge Function, so it doesn't run in `npm run dev` or the claude.ai preview. SEC asks for a contact email on every request: add `SEC_CONTACT_EMAIL` in Vercel's Environment Variables (it defaults to research@sbw-invest.com).
+
 ## Project layout
 
 | Path | What it holds |
@@ -43,6 +49,7 @@ To keep sign-ups to your team only, turn off **Authentication → Providers → 
 | `src/components/PlayerBar.tsx` | Docked audio player with chapters and live mode |
 | `src/pages/*` | Home, Calendar, Search, Chat, Saved, Workspaces, Watchlists, Alerts, Settings |
 | `src/data/*` | Sample companies and events, swap for a real data source |
+| `api/sec.ts`, `src/sec.ts`, `src/pages/SecCompany.tsx` | Real SEC EDGAR data: server function, client and company page |
 | `src/chatEngine.ts` | Local stand-in for AI answers with citations |
 | `src/store.tsx` | App state, saved in the browser and, when signed in, to the account |
 | `src/auth.tsx`, `src/cloud.ts` | Sign-in screen and Supabase sync |

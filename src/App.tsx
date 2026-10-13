@@ -12,6 +12,7 @@ import { WorkspacesPage } from './pages/Workspaces'
 import { WatchlistsPage } from './pages/Watchlists'
 import { AlertsPage } from './pages/Alerts'
 import { SettingsPage } from './pages/Settings'
+import { SecCompanyPage } from './pages/SecCompany'
 import { HelpPage, QueuePage, ReleaseNotesPage } from './pages/Misc'
 
 declare const __ARTIFACT__: boolean
@@ -40,6 +41,8 @@ export function App() {
               <Route path="alerts" element={<AlertsPage />} />
               <Route path="company/:id" element={<CompanyPage />} />
               <Route path="company/:id/:tab" element={<CompanyPage />} />
+              <Route path="sec/:cik" element={<SecCompanyPage />} />
+              <Route path="sec/:cik/:tab" element={<SecCompanyPage />} />
               <Route path="queue" element={<QueuePage />} />
               <Route path="release-notes" element={<ReleaseNotesPage />} />
               <Route path="help" element={<HelpPage />} />
