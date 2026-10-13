@@ -1,0 +1,181 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import {
+  House, Calendar, Search, Sparkle, Bookmark, LayoutGrid, Layers, Quote, ListEnd, Gift, CircleHelp, Settings,
+  PanelLeftClose, PanelLeftOpen, Menu as MenuIcon, ArrowRight,
+} from 'lucide-react'
+import { COMPANIES, EVENTS } from '../data'
+import { useStore } from '../store'
+import { Logo, Ticker } from './ui'
+import { PlayerBar } from './PlayerBar'
+import { EventPanel } from './EventPanel'
+import { ChatPanel } from '../pages/Chat'
+import { eventWhen } from '../format'
+
+export function Wordmark() {
+  return (
+    <span className="wordmark" aria-label="SBW Research">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M5 12.5 L8 8.5 L10.5 10.5 L13.5 5.5" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <b>SBW</b><span>RESEARCH</span>
+    </span>
+  )
+}
+
+const NAV = [
+  { to: '/', label: 'Home', icon: House, end: true },
+  { to: '/calendar', label: 'Calendar', icon: Calendar },
+  { to: '/search', label: 'Search', icon: Search },
+  { to: '/chat', label: 'Chat', icon: Sparkle },
+  { to: '/saved', label: 'Saved', icon: Bookmark },
+  { to: '/workspaces', label: 'Workspaces', icon: LayoutGrid },
+  { to: '/watchlists', label: 'Watchlists', icon: Layers },
+  { to: '/alerts', label: 'Keyword alerts', icon: Quote },
+]
+
+export function Shell() {
+  const store = useStore()
+  const { panel, expanded, prefs, toast, quickOpen, setQuickOpen } = store
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileNav, setMobileNav] = useState(false)
+  const loc = useLocation()
+
+  useEffect(() => { setMobileNav(false) }, [loc.pathname])
+
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setQuickOpen(!quickOpen) }
+    }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [quickOpen, setQuickOpen])
+
+  const mode = prefs.theme === 'System' ? 'system' : prefs.theme.toLowerCase()
+  const hasPanel = panel !== null
+
+  return (
+    <div className={`app mode-${mode}${prefs.pointer ? ' pointer' : ''}${collapsed ? ' collapsed' : ''}`}>
+      <header className="mobile-top">
+        <button className="ghost-icon" aria-label="Open menu" onClick={() => setMobileNav(true)}><MenuIcon size={18} /></button>
+        <Wordmark />
+        <button className="ghost-icon" aria-label="Quick access" onClick={() => setQuickOpen(true)}><Search size={18} /></button>
+      </header>
+      <aside className={`sidebar${mobileNav ? ' open' : ''}`}>
+        <div className="sidebar-top">
+          {!collapsed && <Wordmark />}
+          <button className="ghost-icon" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed((c) => !c)}>
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        </div>
+        <button className="quick-btn" onClick={() => setQuickOpen(true)}>
+          {collapsed ? <Search size={15} /> : <><span>Quick access</span><kbd>Ctrl K</kbd></>}
+        </button>
+        <nav className="nav">
+          {NAV.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title={n.label}>
+              <n.icon size={16} strokeWidth={1.8} /><span>{n.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="nav-spacer" />
+        <nav className="nav">
+          <NavLink to="/queue" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title="Event queue">
+            <ListEnd size={16} strokeWidth={1.8} /><span>Event queue</span>{store.queue.length > 0 && <em className="count">{store.queue.length}</em>}
+          </NavLink>
+        </nav>
+        <div className="nav-sep" />
+        <nav className="nav">
+          <NavLink to="/release-notes" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title="Release notes"><Gift size={16} strokeWidth={1.8} /><span>Release notes</span></NavLink>
+          <NavLink to="/help" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title="Help & support"><CircleHelp size={16} strokeWidth={1.8} /><span>Help &amp; support</span></NavLink>
+          <NavLink to="/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title="Settings"><Settings size={16} strokeWidth={1.8} /><span>Settings</span></NavLink>
+        </nav>
+      </aside>
+      {mobileNav && <div className="scrim" onClick={() => setMobileNav(false)} />}
+
+      <div className="stage">
+        <div className={`panels${hasPanel ? ' split' : ''}${expanded ? ' expanded' : ''}`}>
+          <main className="panel main-panel">
+            <Outlet />
+          </main>
+          {panel?.kind === 'event' && <section className="panel side-panel"><EventPanel key={panel.eventId} /></section>}
+          {panel?.kind === 'chat' && <section className="panel side-panel"><ChatPanel /></section>}
+        </div>
+        <PlayerBar />
+        <div className="bottom-strip">
+          <span className="sample-note">Sample data · fictional companies</span>
+          <button className="float-chat" onClick={() => (panel?.kind === 'chat' ? store.closePanel() : store.openChatPanel())}><Sparkle size={14} />Chat</button>
+        </div>
+      </div>
+
+      {quickOpen && <QuickAccess onClose={() => setQuickOpen(false)} />}
+      {toast && <div className="toast" role="status">{toast}</div>}
+    </div>
+  )
+}
+
+function QuickAccess({ onClose }: { onClose: () => void }) {
+  const [q, setQ] = useState('')
+  const [sel, setSel] = useState(0)
+  const nav = useNavigate()
+  const { openEvent, set, prefs } = useStore()
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  type Row = { group: string; key: string; label: React.ReactNode; hint?: string; run: () => void }
+  const rows = useMemo<Row[]>(() => {
+    const t = q.trim().toLowerCase()
+    const out: Row[] = []
+    const comps = COMPANIES.filter((c) => !t || c.name.toLowerCase().includes(t) || c.ticker.toLowerCase().startsWith(t)).slice(0, t ? 6 : 4)
+    comps.forEach((c) => out.push({ group: 'Companies', key: c.id, label: <><Logo id={c.id} size={20} /><span>{c.name}</span><Ticker id={c.id} /></>, run: () => nav(`/company/${c.id}`) }))
+    const evs = EVENTS.filter((e) => e.status !== 'upcoming' && (!t || `${COMPANIES.find((c) => c.id === e.companyId)!.name} ${e.title}`.toLowerCase().includes(t))).slice(0, t ? 5 : 3)
+    evs.forEach((e) => out.push({ group: 'Events', key: e.id, label: <><Logo id={e.companyId} size={20} /><span>{COMPANIES.find((c) => c.id === e.companyId)!.name} · {e.title}</span></>, hint: eventWhen(e.date), run: () => openEvent(e.id) }))
+    const pages: [string, string][] = [['Home', '/'], ['Calendar', '/calendar'], ['Search', '/search'], ['Chat', '/chat'], ['Saved', '/saved'], ['Workspaces', '/workspaces'], ['Watchlists', '/watchlists'], ['Keyword alerts', '/alerts'], ['Event queue', '/queue'], ['Settings', '/settings']]
+    pages.filter(([l]) => !t || l.toLowerCase().includes(t)).slice(0, t ? 4 : 0).forEach(([l, p]) => out.push({ group: 'Go to', key: p, label: <span>{l}</span>, run: () => nav(p) }))
+    const actions: [string, () => void][] = [
+      ['New chat', () => nav('/chat')],
+      ['New watchlist', () => nav('/watchlists?new=1')],
+      ['New keyword alert', () => nav('/alerts?new=1')],
+      [`Switch to ${prefs.theme === 'Light' ? 'dark' : 'light'} theme`, () => set('prefs', (p) => ({ ...p, theme: p.theme === 'Light' ? 'Dark' : 'Light' }))],
+    ]
+    actions.filter(([l]) => !t || l.toLowerCase().includes(t)).forEach(([l, run]) => out.push({ group: 'Actions', key: l, label: <span>{l}</span>, run }))
+    if (t) out.push({ group: 'Search', key: 'search', label: <span>Search all documents for “{q}”</span>, run: () => nav(`/search?q=${encodeURIComponent(q)}`) })
+    return out
+  }, [q, nav, openEvent, set, prefs.theme])
+
+  useEffect(() => setSel(0), [q])
+  const run = (r: Row) => { r.run(); onClose() }
+  let lastGroup = ''
+  return (
+    <div className="modal-back top" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="quick" role="dialog" aria-label="Quick access">
+        <div className="quick-input">
+          <Search size={16} />
+          <input id="quick-input" ref={inputRef} value={q} placeholder="Search companies, events, pages and actions" onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(rows.length - 1, s + 1)) }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(0, s - 1)) }
+              if (e.key === 'Enter' && rows[sel]) run(rows[sel])
+              if (e.key === 'Escape') onClose()
+            }} />
+          <kbd>Esc</kbd>
+        </div>
+        <div className="quick-list">
+          {rows.length === 0 && <div className="empty">No matches. Press Enter to search documents.</div>}
+          {rows.map((r, i) => {
+            const head = r.group !== lastGroup
+            lastGroup = r.group
+            return (
+              <div key={r.group + r.key}>
+                {head && <div className="quick-group">{r.group}</div>}
+                <button className={`quick-row${i === sel ? ' sel' : ''}`} onMouseEnter={() => setSel(i)} onClick={() => run(r)}>
+                  <span className="quick-label">{r.label}</span>
+                  {r.hint && <span className="quick-hint">{r.hint}</span>}
+                  {i === sel && <ArrowRight size={14} />}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
