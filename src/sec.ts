@@ -69,9 +69,9 @@ export const isEarnings = (f: SecFiling) => /^8-K/.test(f.form) && f.items.split
 
 /* ---------- earnings calls (EarningsCall via /api/calls) ---------- */
 
-export interface CallEvent { year: number; quarter: number; date: string | null; published: boolean }
+export interface CallEvent { year: number; quarter: number; date: string | null; published: boolean; eps?: { actual: number | null; estimate: number | null } | null }
 export interface CallTranscript {
-  company: string; year: number; quarter: number; date: string | null; timed: boolean; qnaStart: string | null
+  company: string; year: number; quarter: number; date: string | null; timed: boolean; qnaStart: string | null; audio: boolean; source: string
   speakers: Record<string, { name: string; title: string }>
   paragraphs: { id: string; speaker: string; start: number | null; sentences: { t: number | null; text: string }[] }[]
 }
@@ -80,8 +80,8 @@ export interface CallTranscript {
 export const callExchange = (secExchange: string | undefined) => (secExchange ? secExchange.toUpperCase().replace(/\s+/g, '') : '')
 const callQs = (symbol: string, exchange: string, extra = '') => `symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange)}${extra}`
 
-export async function loadCallEvents(symbol: string, exchange: string): Promise<CallEvent[]> {
-  const r = await fetch(`/api/calls?type=events&${callQs(symbol, exchange)}`)
+export async function loadCallEvents(symbol: string, exchange: string, fye = '1231'): Promise<CallEvent[]> {
+  const r = await fetch(`/api/calls?type=events&${callQs(symbol, exchange, `&fye=${fye}`)}`)
   if (!r.ok) return []
   return ((await r.json()) as { events: CallEvent[] }).events
 }

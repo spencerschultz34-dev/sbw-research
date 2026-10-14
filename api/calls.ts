@@ -3,11 +3,14 @@
 // GET /api/calls?type=transcript&symbol=AAPL&exchange=NASDAQ&year=2026&quarter=4
 // GET /api/calls?type=audio&symbol=AAPL&exchange=NASDAQ&year=2026&quarter=4   (MP3, supports Range for seeking)
 // Set EARNINGSCALL_API_KEY in Vercel. Without it the free "demo" key is used, which only covers AAPL and MSFT.
+// When EarningsCall can't serve a company, ALPHAVANTAGE_API_KEY (free, 25 requests a day) supplies the list of calls and
+// speaker-labelled transcripts without audio or timestamps.
 export const config = { runtime: 'edge' }
 
 const BASE = 'https://api.earningscall.dev'
 const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
 const KEY = env.EARNINGSCALL_API_KEY || 'demo'
+const AV_KEY = env.ALPHAVANTAGE_API_KEY || ''
 
 export default async function handler(req: Request): Promise<Response> {
   const q = new URL(req.url).searchParams
@@ -18,10 +21,23 @@ export default async function handler(req: Request): Promise<Response> {
   const period = Number.isInteger(year) && year > 1990 && [1, 2, 3, 4].includes(quarter)
   try {
     switch (q.get('type')) {
-      case 'events': return json(await events(symbol, exchange), 3600)
+      case 'events': {
+        const fye = q.get('fye') ?? '1231'
+        try {
+          const r = await events(symbol, exchange)
+          if (r.events.length || !AV_KEY) return json(r, 3600)
+        } catch (e) { if (!AV_KEY) throw e }
+        return json(await avEvents(symbol, /^\d{4}$/.test(fye) ? fye : '1231'), 12 * 3600)
+      }
       case 'transcript':
         if (!period) return json({ error: 'Missing year/quarter' }, 0, 400)
-        return json(await transcript(symbol, exchange, year, quarter), 7 * 86400)
+        try {
+          return json(await transcript(symbol, exchange, year, quarter), 7 * 86400)
+        } catch (e) {
+          const status = (e as { status?: number }).status
+          if (!AV_KEY || (status !== 403 && status !== 404)) throw e
+          return json(await avTranscript(symbol, year, quarter), 7 * 86400)
+        }
       case 'audio':
         if (!period) return json({ error: 'Missing year/quarter' }, 0, 400)
         return audio(symbol, exchange, year, quarter, req.headers.get('range'))
@@ -62,7 +78,7 @@ interface EcEvent { year: number; quarter: number; conference_date: string | nul
 
 async function events(symbol: string, exchange: string) {
   const r = await call<{ company_name: string; events: EcEvent[] }>('/events', { symbol, exchange })
-  return { company: r.company_name, events: r.events.map((e) => ({ year: e.year, quarter: e.quarter, date: e.conference_date, published: e.is_published !== false })) }
+  return { company: r.company_name, source: 'EarningsCall', events: r.events.map((e) => ({ year: e.year, quarter: e.quarter, date: e.conference_date, published: e.is_published !== false, eps: null as null | { actual: number | null; estimate: number | null } })) }
 }
 
 /* ---------- transcript ---------- */
@@ -100,7 +116,7 @@ async function transcript(symbol: string, exchange: string, year: number, quarte
     const hit = turns.find((t) => norm(t.sentences.map((s) => s.text).join(' ')).startsWith(head.slice(0, 40)))
     qnaStart = hit?.id ?? null
   }
-  return { company: l2.company_name, year, quarter, date: l2.event?.conference_date ?? null, speakers, paragraphs: turns, qnaStart, timed: !!l3 }
+  return { company: l2.company_name, year, quarter, date: l2.event?.conference_date ?? null, speakers, paragraphs: turns, qnaStart, timed: !!l3, audio: true, source: 'EarningsCall' }
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
@@ -129,4 +145,52 @@ async function audio(symbol: string, exchange: string, year: number, quarter: nu
   const headers: Record<string, string> = { 'content-type': 'audio/mpeg', 'accept-ranges': 'bytes', 'cache-control': 'public, s-maxage=604800' }
   for (const h of ['content-length', 'content-range']) { const v = r.headers.get(h); if (v) headers[h] = v }
   return new Response(r.body, { status: r.status, headers })
+}
+
+/* ---------- Alpha Vantage fallback (free key: 25 requests a day) ---------- */
+
+async function av<T>(params: Record<string, string>): Promise<T> {
+  const u = new URL('https://www.alphavantage.co/query')
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v)
+  u.searchParams.set('apikey', AV_KEY)
+  const r = await fetch(u)
+  if (!r.ok) throw Object.assign(new Error(`Alpha Vantage returned ${r.status}`), { status: 502 })
+  const body = (await r.json()) as T & { Information?: string; Note?: string; 'Error Message'?: string }
+  const notice = body.Information ?? body.Note ?? body['Error Message']
+  if (notice) throw Object.assign(new Error(/limit|rate|premium/i.test(notice) ? 'The free Alpha Vantage limit for today is used up. Try again tomorrow.' : notice), { status: 429 })
+  return body
+}
+
+/** Fiscal year and quarter of a period, given the company's fiscal year end as MMDD (from the SEC). */
+function fiscal(periodEnd: string, fye: string) {
+  const d = new Date(Date.parse(periodEnd + 'T00:00:00Z') - 15 * 864e5) // 52/53-week years end in the first days of a month
+  const m = d.getUTCMonth() + 1, y = d.getUTCFullYear()
+  const endMonth = new Date(Date.UTC(2001, Number(fye.slice(0, 2)) - 1, Number(fye.slice(2)) - 15)).getUTCMonth() + 1
+  return { year: m <= endMonth ? y : y + 1, quarter: Math.floor(((m - endMonth - 1 + 12) % 12) / 3) + 1 }
+}
+
+async function avEvents(symbol: string, fye: string) {
+  const r = await av<{ quarterlyEarnings?: { fiscalDateEnding: string; reportedDate: string; reportedEPS: string; estimatedEPS: string }[] }>({ function: 'EARNINGS', symbol })
+  const num = (v: string) => (v && v !== 'None' ? Number(v) : null)
+  return {
+    company: symbol, source: 'Alpha Vantage',
+    events: (r.quarterlyEarnings ?? []).slice(0, 12).map((e) => ({ ...fiscal(e.fiscalDateEnding, fye), date: e.reportedDate, published: true, eps: { actual: num(e.reportedEPS), estimate: num(e.estimatedEPS) } })),
+  }
+}
+
+async function avTranscript(symbol: string, year: number, quarter: number) {
+  const r = await av<{ transcript?: { speaker: string; title?: string; content: string }[] }>({ function: 'EARNINGS_CALL_TRANSCRIPT', symbol, quarter: `${year}Q${quarter}` })
+  const items = r.transcript ?? []
+  if (!items.length) throw Object.assign(new Error('No transcript for this call yet.'), { status: 404 })
+  const speakers: Record<string, { name: string; title: string }> = {}
+  const id = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  let qnaStart: string | null = null
+  const paragraphs = items.map((t, i) => {
+    speakers[id(t.speaker)] ??= { name: t.speaker, title: t.title ?? '' }
+    // Q&A begins with the first analyst who speaks.
+    if (!qnaStart && i > 1 && /analyst/i.test(t.title ?? '')) qnaStart = `p${i + 1}`
+    const sentences = (t.content.match(/[^.!?]+[.!?]+["')\]]?\s*|[^.!?]+$/g) ?? [t.content]).map((x) => ({ t: null as number | null, text: x.trim() })).filter((x) => x.text)
+    return { id: `p${i + 1}`, speaker: id(t.speaker), start: null as number | null, sentences }
+  })
+  return { company: symbol, year, quarter, date: null, speakers, paragraphs, qnaStart, timed: false, audio: false, source: 'Alpha Vantage' }
 }

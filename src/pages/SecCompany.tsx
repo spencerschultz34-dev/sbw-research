@@ -211,9 +211,9 @@ function Earnings({ d }: { d: SecCompany }) {
   useEffect(() => {
     if (!symbol || !exchange) return
     let on = true
-    loadCallEvents(symbol, exchange).then((x) => on && setCalls(x)).catch(() => {})
+    loadCallEvents(symbol, exchange, d.fiscalYearEnd || '1231').then((x) => on && setCalls(x)).catch(() => {})
     return () => { on = false }
-  }, [symbol, exchange])
+  }, [symbol, exchange, d.fiscalYearEnd])
 
   // An earnings call usually happens the day the 8-K is filed; allow a few days either way.
   const callFor = (filed: string) => calls.find((c) => c.date && c.published && Math.abs(Date.parse(c.date) - Date.parse(filed + 'T12:00:00Z')) < 4 * 864e5)
@@ -250,6 +250,9 @@ function Earnings({ d }: { d: SecCompany }) {
               <span className="min0">
                 <b className="block">{c ? `Q${c.quarter} FY${c.year}` : `Results · ${MON[Number(f.filed.slice(5, 7)) - 1]} ${f.filed.slice(0, 4)}`}</b>
                 <small className="muted">{day(f.filed)}{c ? ' · call' : ''}</small>
+                {c?.eps?.actual != null && c.eps.estimate != null && (
+                  <small className={`block ${c.eps.actual >= c.eps.estimate ? 'pos' : 'neg'}`}>EPS {c.eps.actual.toFixed(2)} vs {c.eps.estimate.toFixed(2)} est.</small>
+                )}
               </span>
             </button>
           )

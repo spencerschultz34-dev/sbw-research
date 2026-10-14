@@ -46,6 +46,10 @@ The **Earnings** tab on a company page lists each results announcement (8-K Item
 
 This runs through `api/calls.ts`. Without a key it uses EarningsCall's free demo, which covers Apple (AAPL) and Microsoft (MSFT) only. For every company, buy the Ultimate plan at [earningscall.biz](https://earningscall.biz/api-pricing) (transcripts with speakers and timestamps, plus audio) and add `EARNINGSCALL_API_KEY` in Vercel's Environment Variables, then redeploy.
 
+### Free fallback: Alpha Vantage
+
+Add a free key from [alphavantage.co](https://www.alphavantage.co/support/#api-key) as `ALPHAVANTAGE_API_KEY` in Vercel. When EarningsCall can't serve a company (for example on the demo or trial key), the app lists its calls with EPS against estimates and shows a speaker-labelled transcript, without audio. The free key allows 25 requests a day, and each call is cached for a week.
+
 ## Project layout
 
 | Path | What it holds |
