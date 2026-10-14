@@ -66,3 +66,31 @@ export function loadExhibits(cik: number, acc: string): Promise<SecDoc[]> {
 export const archiveUrl = (path: string) => `/sec-archive/${path}`
 /** 8-K filings under Item 2.02 ("Results of Operations") are earnings announcements. */
 export const isEarnings = (f: SecFiling) => /^8-K/.test(f.form) && f.items.split(',').includes('2.02')
+
+/* ---------- earnings calls (EarningsCall via /api/calls) ---------- */
+
+export interface CallEvent { year: number; quarter: number; date: string | null; published: boolean }
+export interface CallTranscript {
+  company: string; year: number; quarter: number; date: string | null; timed: boolean; qnaStart: string | null
+  speakers: Record<string, { name: string; title: string }>
+  paragraphs: { id: string; speaker: string; start: number | null; sentences: { t: number | null; text: string }[] }[]
+}
+
+/** EarningsCall names exchanges in capitals; SEC uses "Nasdaq", "NYSE" and so on. */
+export const callExchange = (secExchange: string | undefined) => (secExchange ? secExchange.toUpperCase().replace(/\s+/g, '') : '')
+const callQs = (symbol: string, exchange: string, extra = '') => `symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange)}${extra}`
+
+export async function loadCallEvents(symbol: string, exchange: string): Promise<CallEvent[]> {
+  const r = await fetch(`/api/calls?type=events&${callQs(symbol, exchange)}`)
+  if (!r.ok) return []
+  return ((await r.json()) as { events: CallEvent[] }).events
+}
+
+export async function loadTranscript(symbol: string, exchange: string, year: number, quarter: number): Promise<CallTranscript> {
+  const r = await fetch(`/api/calls?type=transcript&${callQs(symbol, exchange, `&year=${year}&quarter=${quarter}`)}`)
+  const body = await r.json().catch(() => null)
+  if (!r.ok || !body) throw new Error(body?.error ?? 'Could not load the transcript.')
+  return body as CallTranscript
+}
+
+export const audioUrl = (symbol: string, exchange: string, year: number, quarter: number) => `/api/calls?type=audio&${callQs(symbol, exchange, `&year=${year}&quarter=${quarter}`)}`

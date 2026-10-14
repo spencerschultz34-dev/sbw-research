@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
-import { ExternalLink, FileText, Landmark } from 'lucide-react'
-import { archiveUrl, isEarnings, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
+import { ExternalLink, FileText, Headphones, Landmark } from 'lucide-react'
+import { CallView } from './CallView'
+import { archiveUrl, callExchange, isEarnings, loadCallEvents, type CallEvent, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
 import { Empty } from '../components/ui'
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -199,10 +200,23 @@ function kindOf(d: SecDoc): DocKind {
 
 function Earnings({ d }: { d: SecCompany }) {
   const list = d.filings.filter(isEarnings)
+  const symbol = d.tickers[0] ?? ''
+  const exchange = callExchange(d.exchanges[0])
   const [acc, setAcc] = useState(list[0]?.acc)
   const [docs, setDocs] = useState<SecDoc[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [cur, setCur] = useState<string | null>(null)
+  const [cur, setCur] = useState<string | null>(null) // 'call' or a document path
+  const [calls, setCalls] = useState<CallEvent[]>([])
+
+  useEffect(() => {
+    if (!symbol || !exchange) return
+    let on = true
+    loadCallEvents(symbol, exchange).then((x) => on && setCalls(x)).catch(() => {})
+    return () => { on = false }
+  }, [symbol, exchange])
+
+  // An earnings call usually happens the day the 8-K is filed; allow a few days either way.
+  const callFor = (filed: string) => calls.find((c) => c.date && c.published && Math.abs(Date.parse(c.date) - Date.parse(filed + 'T12:00:00Z')) < 4 * 864e5)
 
   useEffect(() => {
     if (!acc) return
@@ -212,26 +226,38 @@ function Earnings({ d }: { d: SecCompany }) {
       if (!on) return
       const useful = x.filter((y) => /^EX-99/.test(y.type) || /\.pdf$/i.test(y.name))
       setDocs(useful)
-      setCur((useful.find((y) => kindOf(y) === 'release') ?? useful[0])?.path ?? null)
+      setCur((c) => c ?? (useful.find((y) => kindOf(y) === 'release') ?? useful[0])?.path ?? null)
     }).catch((e) => on && setErr(e.message))
     return () => { on = false }
   }, [acc, d.cik])
 
-  if (!list.length) return <Empty>No earnings filings (8-K Item 2.02) in this company's recent filings.</Empty>
+  const filing = list.find((f) => f.acc === acc)
+  const call = filing ? callFor(filing.filed) : undefined
+  // Open the call first when there is one.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (call) setCur('call') }, [call?.year, call?.quarter, acc])
+
+  if (!list.length || !filing) return <Empty>No earnings filings (8-K Item 2.02) in this company's recent filings.</Empty>
   const label = (k: DocKind) => (k === 'release' ? 'Press release' : k === 'slides' ? 'Presentation' : 'Exhibit')
-  const filing = list.find((f) => f.acc === acc)!
   const current = docs?.find((x) => x.path === cur)
   return (
     <div className="earn">
       <aside className="earn-list">
-        {list.map((f) => (
-          <button key={f.acc} className={`sub-item${f.acc === acc ? ' active' : ''}`} onClick={() => setAcc(f.acc)}>
-            <span className="min0"><b className="block">Results · {MON[Number(f.filed.slice(5, 7)) - 1]} {f.filed.slice(0, 4)}</b><small className="muted">Filed {day(f.filed)}</small></span>
-          </button>
-        ))}
+        {list.map((f) => {
+          const c = callFor(f.filed)
+          return (
+            <button key={f.acc} className={`sub-item${f.acc === acc ? ' active' : ''}`} onClick={() => { setAcc(f.acc); setCur(null) }}>
+              <span className="min0">
+                <b className="block">{c ? `Q${c.quarter} FY${c.year}` : `Results · ${MON[Number(f.filed.slice(5, 7)) - 1]} ${f.filed.slice(0, 4)}`}</b>
+                <small className="muted">{day(f.filed)}{c ? ' · call' : ''}</small>
+              </span>
+            </button>
+          )
+        })}
       </aside>
       <section className="earn-main">
         <div className="doc-toolbar">
+          {call && <button className={`fchip${cur === 'call' ? ' on' : ''}`} onClick={() => setCur('call')}><Headphones size={13} />Call &amp; transcript</button>}
           {docs?.map((x) => (
             <button key={x.path} className={`fchip${x.path === cur ? ' on' : ''}`} onClick={() => setCur(x.path)} title={x.description}>
               {label(kindOf(x))}<em>{x.type.replace('EX-', 'Ex ')}</em>
@@ -241,10 +267,12 @@ function Earnings({ d }: { d: SecCompany }) {
           {current && <a className="text-btn" href={archiveUrl(current.path)} target="_blank" rel="noreferrer">Open<ExternalLink size={13} /></a>}
           <a className="text-btn hide-narrow" href={filing.index} target="_blank" rel="noreferrer">Filing on sec.gov<ExternalLink size={13} /></a>
         </div>
-        {err && <Empty>{err}</Empty>}
-        {!err && !docs && <Empty>Loading documents…</Empty>}
-        {docs && !docs.length && <Empty>This filing has no attached release or slides. <a className="accent" href={filing.url} target="_blank" rel="noreferrer">Open the 8-K</a></Empty>}
-        {current && <iframe key={current.path} className="earn-frame" title={current.description || current.name} src={archiveUrl(current.path)} />}
+        {cur === 'call' && call ? <CallView symbol={symbol} exchange={exchange} year={call.year} quarter={call.quarter} /> : <>
+          {err && <Empty>{err}</Empty>}
+          {!err && !docs && <Empty>Loading documents…</Empty>}
+          {docs && !docs.length && <Empty>This filing has no attached release or slides. <a className="accent" href={filing.url} target="_blank" rel="noreferrer">Open the 8-K</a></Empty>}
+          {current && <iframe key={current.path} className="earn-frame" title={current.description || current.name} src={archiveUrl(current.path)} />}
+        </>}
       </section>
     </div>
   )

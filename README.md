@@ -40,6 +40,12 @@ On the hosted site, press Ctrl/Cmd K and type any US ticker or company name. Res
 
 This uses the free SEC EDGAR APIs through `api/sec.ts`, a Vercel Edge Function, so it doesn't run in `npm run dev` or the claude.ai preview. SEC asks for a contact email on every request: add `SEC_CONTACT_EMAIL` in Vercel's Environment Variables (it defaults to research@sbw-invest.com).
 
+## Earnings calls: transcripts and audio (EarningsCall)
+
+The **Earnings** tab on a company page lists each results announcement (8-K Item 2.02) with its press release and slide deck from the SEC. When EarningsCall has the call, a **Call & transcript** view plays the audio with the transcript following along; click any sentence to jump there.
+
+This runs through `api/calls.ts`. Without a key it uses EarningsCall's free demo, which covers Apple (AAPL) and Microsoft (MSFT) only. For every company, buy the Ultimate plan at [earningscall.biz](https://earningscall.biz/api-pricing) (transcripts with speakers and timestamps, plus audio) and add `EARNINGSCALL_API_KEY` in Vercel's Environment Variables, then redeploy.
+
 ## Project layout
 
 | Path | What it holds |
@@ -50,6 +56,7 @@ This uses the free SEC EDGAR APIs through `api/sec.ts`, a Vercel Edge Function, 
 | `src/pages/*` | Home, Calendar, Search, Chat, Saved, Workspaces, Watchlists, Alerts, Settings |
 | `src/data/*` | Sample companies and events, swap for a real data source |
 | `api/sec.ts`, `src/sec.ts`, `src/pages/SecCompany.tsx` | Real SEC EDGAR data: server function, client and company page |
+| `api/calls.ts`, `src/pages/CallView.tsx` | Earnings call transcripts and audio from EarningsCall |
 | `src/chatEngine.ts` | Local stand-in for AI answers with citations |
 | `src/store.tsx` | App state, saved in the browser and, when signed in, to the account |
 | `src/auth.tsx`, `src/cloud.ts` | Sign-in screen and Supabase sync |
