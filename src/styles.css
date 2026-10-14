@@ -660,3 +660,12 @@ svg .axis { fill: var(--muted); font: 9px var(--ui); }
 .auth-msg { margin-top: 12px; font-size: 13px; padding: 8px 10px; border-radius: 7px; }
 .auth-msg.ok { background: color-mix(in srgb, var(--pos) 14%, transparent); }
 .auth-msg.err { background: color-mix(in srgb, var(--neg) 14%, transparent); }
+
+/* ---------- SEC earnings viewer ---------- */
+.earn-wrap { flex: 1; min-height: 0; display: flex; }
+.earn { flex: 1; min-height: 0; display: grid; grid-template-columns: 230px minmax(0, 1fr); }
+.earn-list { border-right: 1px solid var(--line); padding: 10px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.earn-list .sub-item { height: auto; padding: 8px 10px; }
+.earn-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.earn-frame { flex: 1; width: 100%; border: 0; background: var(--paper); }
+@container main (max-width: 760px) { .earn { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; } .earn-list { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); } .earn-list .sub-item { flex: none; width: auto; } }

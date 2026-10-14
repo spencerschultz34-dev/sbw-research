@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 
 export type SecTicker = readonly [cik: number, ticker: string, name: string]
 export interface SecPoint { end: string; label: string; value: number; derived?: boolean }
-export interface SecFiling { form: string; filed: string; period: string | null; title: string; items: string; url: string; index: string }
+export interface SecFiling { form: string; filed: string; period: string | null; title: string; items: string; url: string; index: string; acc: string }
+export interface SecDoc { seq: string; description: string; name: string; type: string; size: string; path: string }
 export interface SecCompany {
   cik: number; name: string; tickers: string[]; exchanges: string[]; industry: string; fiscalYearEnd: string
   category: string; state: string; city: string | null; website: string | null
@@ -48,3 +49,20 @@ export async function loadCompany(cik: number): Promise<SecCompany> {
 
 /** SEC stores many names in capitals ("MICROSOFT CORP"); show them in title case. */
 export const titleCase = (s: string) => (s === s.toUpperCase() ? s.toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase()) : s)
+
+const docCache = new Map<string, Promise<SecDoc[]>>()
+export function loadExhibits(cik: number, acc: string): Promise<SecDoc[]> {
+  const k = `${cik}/${acc}`
+  if (!docCache.has(k)) {
+    docCache.set(k, fetch(`/api/sec?type=exhibits&cik=${cik}&acc=${acc}`).then(async (r) => {
+      if (!r.ok) throw new Error('Could not load this filing from the SEC.')
+      return r.json()
+    }))
+    docCache.get(k)!.catch(() => docCache.delete(k))
+  }
+  return docCache.get(k)!
+}
+/** Address of a filing document served from our own domain (see vercel.json). */
+export const archiveUrl = (path: string) => `/sec-archive/${path}`
+/** 8-K filings under Item 2.02 ("Results of Operations") are earnings announcements. */
+export const isEarnings = (f: SecFiling) => /^8-K/.test(f.form) && f.items.split(',').includes('2.02')

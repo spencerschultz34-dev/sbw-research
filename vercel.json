@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/sec-archive/:path*", "destination": "/api/sec?type=file&path=:path*" }
+  ]
+}

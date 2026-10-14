@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
 import { ExternalLink, FileText, Landmark } from 'lucide-react'
-import { loadCompany, secAvailable, titleCase, type SecCompany, type SecFiling, type SecPoint } from '../sec'
+import { archiveUrl, isEarnings, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
 import { Empty } from '../components/ui'
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -51,10 +51,11 @@ export function SecCompanyPage() {
       </div>
       <div className="tabs">
         <NavLink to={`/sec/${cik}`} end className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Overview</NavLink>
+        <NavLink to={`/sec/${cik}/earnings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Earnings<span className="count">{data.filings.filter(isEarnings).length}</span></NavLink>
         <NavLink to={`/sec/${cik}/filings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Filings<span className="count">{data.filings.length}</span></NavLink>
       </div>
-      <div className="page-scroll">
-        {tab === 'filings' ? <Filings filings={data.filings} /> : <Overview d={data} cik={cik} />}
+      <div className={tab === 'earnings' ? 'earn-wrap' : 'page-scroll'}>
+        {tab === 'filings' ? <Filings filings={data.filings} /> : tab === 'earnings' ? <Earnings d={data} /> : <Overview d={data} cik={cik} />}
       </div>
     </div>
   )
@@ -70,6 +71,15 @@ function Overview({ d, cik }: { d: SecCompany; cik: string }) {
   return (
     <div className="co-overview">
       <div className="co-left">
+        {d.filings.find(isEarnings) && (
+          <>
+            <h3 className="sec-title">Latest results</h3>
+            <NavLink to={`/sec/${cik}/earnings`} className="card pad clickable block">
+              <b>Earnings release</b>
+              <span className="muted small">Filed {day(d.filings.find(isEarnings)!.filed)} · press release and slides from the 8-K</span>
+            </NavLink>
+          </>
+        )}
         <h3 className="sec-title">Profile</h3>
         <div className="card list-card">
           {rows.filter(([, v]) => v).map(([k, v]) => <div key={k} className="list-row"><span className="muted">{k}</span><span className="right">{v}</span></div>)}
@@ -176,3 +186,66 @@ const FORM_NAMES: Record<string, string> = {
   '144': 'Proposed sale of restricted stock', '20-F': 'Annual report (foreign issuer)', '6-K': 'Current report (foreign issuer)', '11-K': 'Employee plan annual report',
 }
 const describe = (form: string) => FORM_NAMES[form] ?? form
+
+/* ---------- Earnings: press release and slides from 8-K Item 2.02 filings ---------- */
+
+type DocKind = 'release' | 'slides' | 'other'
+function kindOf(d: SecDoc): DocKind {
+  const t = `${d.type} ${d.description}`.toLowerCase()
+  if (/presentation|slides|supplement|investor/.test(t) || (d.type === 'EX-99.2' && /\.pdf$/i.test(d.name))) return 'slides'
+  if (/press release|earnings release|news release|results/.test(t) || d.type === 'EX-99.1') return 'release'
+  return 'other'
+}
+
+function Earnings({ d }: { d: SecCompany }) {
+  const list = d.filings.filter(isEarnings)
+  const [acc, setAcc] = useState(list[0]?.acc)
+  const [docs, setDocs] = useState<SecDoc[] | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [cur, setCur] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!acc) return
+    setDocs(null); setErr(null); setCur(null)
+    let on = true
+    loadExhibits(d.cik, acc).then((x) => {
+      if (!on) return
+      const useful = x.filter((y) => /^EX-99/.test(y.type) || /\.pdf$/i.test(y.name))
+      setDocs(useful)
+      setCur((useful.find((y) => kindOf(y) === 'release') ?? useful[0])?.path ?? null)
+    }).catch((e) => on && setErr(e.message))
+    return () => { on = false }
+  }, [acc, d.cik])
+
+  if (!list.length) return <Empty>No earnings filings (8-K Item 2.02) in this company's recent filings.</Empty>
+  const label = (k: DocKind) => (k === 'release' ? 'Press release' : k === 'slides' ? 'Presentation' : 'Exhibit')
+  const filing = list.find((f) => f.acc === acc)!
+  const current = docs?.find((x) => x.path === cur)
+  return (
+    <div className="earn">
+      <aside className="earn-list">
+        {list.map((f) => (
+          <button key={f.acc} className={`sub-item${f.acc === acc ? ' active' : ''}`} onClick={() => setAcc(f.acc)}>
+            <span className="min0"><b className="block">Results · {MON[Number(f.filed.slice(5, 7)) - 1]} {f.filed.slice(0, 4)}</b><small className="muted">Filed {day(f.filed)}</small></span>
+          </button>
+        ))}
+      </aside>
+      <section className="earn-main">
+        <div className="doc-toolbar">
+          {docs?.map((x) => (
+            <button key={x.path} className={`fchip${x.path === cur ? ' on' : ''}`} onClick={() => setCur(x.path)} title={x.description}>
+              {label(kindOf(x))}<em>{x.type.replace('EX-', 'Ex ')}</em>
+            </button>
+          ))}
+          <span className="grow" />
+          {current && <a className="text-btn" href={archiveUrl(current.path)} target="_blank" rel="noreferrer">Open<ExternalLink size={13} /></a>}
+          <a className="text-btn hide-narrow" href={filing.index} target="_blank" rel="noreferrer">Filing on sec.gov<ExternalLink size={13} /></a>
+        </div>
+        {err && <Empty>{err}</Empty>}
+        {!err && !docs && <Empty>Loading documents…</Empty>}
+        {docs && !docs.length && <Empty>This filing has no attached release or slides. <a className="accent" href={filing.url} target="_blank" rel="noreferrer">Open the 8-K</a></Empty>}
+        {current && <iframe key={current.path} className="earn-frame" title={current.description || current.name} src={archiveUrl(current.path)} />}
+      </section>
+    </div>
+  )
+}

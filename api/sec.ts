@@ -1,6 +1,8 @@
 // Vercel Edge Function: reads public SEC EDGAR data and returns it in the shape the app uses.
 // GET /api/sec?type=tickers           → every US-listed company with a ticker
 // GET /api/sec?type=company&cik=320193 → profile, recent filings and quarterly financials
+// GET /api/sec?type=exhibits&cik=320193&acc=0000320193-26-000010 → documents attached to one filing
+// GET /sec-archive/<cik>/<acc>/<file> (rewritten to type=file) → a filing document served from our domain, so it can be shown in the app
 // SEC asks automated clients to identify themselves and stay under 10 requests a second; responses are cached at the edge.
 export const config = { runtime: 'edge' }
 
@@ -17,6 +19,12 @@ export default async function handler(req: Request): Promise<Response> {
       if (!Number.isInteger(cik) || cik <= 0) return json({ error: 'Missing or invalid cik' }, 0, 400)
       return json(await company(cik), 3600)
     }
+    if (q.get('type') === 'exhibits') {
+      const cik = Number(q.get('cik')), acc = q.get('acc') ?? ''
+      if (!Number.isInteger(cik) || cik <= 0 || !/^\d{10}-\d{2}-\d{6}$/.test(acc)) return json({ error: 'Missing or invalid cik/acc' }, 0, 400)
+      return json(await exhibits(cik, acc), 30 * DAY)
+    }
+    if (q.get('type') === 'file') return file(q.get('path') ?? '')
     return json({ error: 'Unknown type' }, 0, 400)
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : 'SEC request failed' }, 0, 502)
@@ -70,6 +78,7 @@ async function company(cik: number) {
     period: r.reportDate[i] || null,
     title: r.primaryDocDescription[i] || r.form[i],
     items: r.items[i] || '',
+    acc,
     url: `https://www.sec.gov/Archives/edgar/data/${cik}/${acc.replace(/-/g, '')}/${r.primaryDocument[i]}`,
     index: `https://www.sec.gov/Archives/edgar/data/${cik}/${acc.replace(/-/g, '')}/`,
   }))
@@ -152,4 +161,43 @@ function quarterLabel(end: string) {
   const d = new Date(end + 'T00:00:00Z')
   const shifted = new Date(d.getTime() - 15 * 864e5) // periods ending in the first days of a month belong to the prior month
   return `Q${Math.floor(shifted.getUTCMonth() / 3) + 1} ${shifted.getUTCFullYear()}`
+}
+
+/* ---------- one filing's documents ---------- */
+
+const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+
+/** Reads the filing index page and lists each attached document (EX-99.1 is usually the press release, EX-99.2 often the slides). */
+async function exhibits(cik: number, acc: string) {
+  const base = `https://www.sec.gov/Archives/edgar/data/${cik}/${acc.replace(/-/g, '')}/`
+  const r = await fetch(`${base}${acc}-index.htm`, { headers: { 'User-Agent': UA } })
+  if (!r.ok) throw new Error(`SEC returned ${r.status}`)
+  const html = await r.text()
+  const table = html.match(/<table[^>]*summary="Document Format Files"[^>]*>([\s\S]*?)<\/table>/i)?.[1]
+    ?? html.match(/<table[^>]*class="tableFile"[^>]*>([\s\S]*?)<\/table>/i)?.[1] ?? ''
+  const docs: { seq: string; description: string; name: string; type: string; size: string; path: string }[] = []
+  for (const row of table.split(/<tr[^>]*>/i).slice(1)) {
+    const cells = row.split(/<td[^>]*>/i).slice(1).map((c) => c.split(/<\/td>/i)[0])
+    const href = row.match(/href="([^"]+)"/i)?.[1]
+    if (cells.length < 4 || !href) continue
+    const name = href.split('/').pop()!.replace(/^ix\?doc=.*\//, '')
+    docs.push({ seq: text(cells[0]), description: text(cells[1]), name, type: text(cells[3]), size: text(cells[4] ?? ''), path: `${cik}/${acc.replace(/-/g, '')}/${name}` })
+  }
+  return docs.filter((d) => d.name && !/\.(txt|xsd|xml)$/i.test(d.name))
+}
+
+/** Serves an archived SEC document from our own domain. Scripts are blocked; filings never need them. */
+async function file(path: string) {
+  if (!/^\d{1,10}\/\d{18}\/[\w.\-]+$/.test(path)) return json({ error: 'Invalid path' }, 0, 400)
+  const r = await fetch(`https://www.sec.gov/Archives/edgar/data/${path}`, { headers: { 'User-Agent': UA } })
+  if (!r.ok) return json({ error: `SEC returned ${r.status}` }, 0, r.status === 404 ? 404 : 502)
+  const type = r.headers.get('content-type') ?? 'application/octet-stream'
+  const headers: Record<string, string> = {
+    'content-type': type,
+    'cache-control': 'public, max-age=86400, s-maxage=31536000, immutable', // filed documents never change
+    'x-content-type-options': 'nosniff',
+  }
+  // HTML filings get scripts blocked; PDFs are left alone because browsers won't display PDFs in a sandbox.
+  if (/html/i.test(type)) headers['content-security-policy'] = "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; font-src data:"
+  return new Response(r.body, { headers })
 }
