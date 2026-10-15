@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
 import { ExternalLink, FileText, Headphones, Landmark } from 'lucide-react'
 import { CallView } from './CallView'
+import { IrEvents, IrLatest, IrReleases, IrSourceForm } from './IrViews'
+import { useIrSource } from '../ir'
 import { archiveUrl, callExchange, isEarnings, loadCallEvents, type CallEvent, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
 import { Empty } from '../components/ui'
 import { Donut, SERIES } from '../components/visuals'
@@ -39,7 +41,13 @@ export function SecCompanyPage() {
   if (error) return <div className="page"><div className="page-head"><span className="page-title">SEC company</span></div><div className="page-scroll"><Empty>{error}</Empty></div></div>
   if (!data) return <div className="page"><div className="page-head"><span className="page-title">Loading SEC data…</span></div></div>
 
+  return <Loaded data={data} cik={cik} tab={tab} />
+}
+
+function Loaded({ data, cik, tab }: { data: SecCompany; cik: string; tab: string }) {
   const ticker = data.tickers[0]
+  const ir = useIrSource(data.cik, data.tickers)
+  const full = tab === 'earnings' || tab === 'events' || tab === 'press-releases'
   return (
     <div className="page company">
       <div className="company-head">
@@ -53,17 +61,24 @@ export function SecCompanyPage() {
       </div>
       <div className="tabs">
         <NavLink to={`/sec/${cik}`} end className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Overview</NavLink>
-        <NavLink to={`/sec/${cik}/earnings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Earnings<span className="count">{data.filings.filter(isEarnings).length}</span></NavLink>
+        <NavLink to={`/sec/${cik}/events`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Events</NavLink>
+        {ir && <NavLink to={`/sec/${cik}/press-releases`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Press releases</NavLink>}
+        <NavLink to={`/sec/${cik}/earnings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>SEC earnings<span className="count">{data.filings.filter(isEarnings).length}</span></NavLink>
         <NavLink to={`/sec/${cik}/filings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Filings<span className="count">{data.filings.length}</span></NavLink>
       </div>
-      <div className={tab === 'earnings' ? 'earn-wrap' : 'page-scroll'}>
-        {tab === 'filings' ? <Filings filings={data.filings} /> : tab === 'earnings' ? <Earnings d={data} /> : <Overview d={data} cik={cik} />}
+      <div className={full ? 'earn-wrap' : 'page-scroll'}>
+        {tab === 'filings' ? <Filings filings={data.filings} />
+          : tab === 'earnings' ? <Earnings d={data} />
+          : tab === 'events' ? (ir ? <IrEvents source={ir} symbol={ticker ?? ''} exchange={callExchange(data.exchanges[0])} fye={data.fiscalYearEnd || '1231'} /> : <AddIr ticker={ticker} />)
+          : tab === 'press-releases' && ir ? <IrReleases source={ir} />
+          : <Overview d={data} cik={cik} />}
       </div>
     </div>
   )
 }
 
 function Overview({ d, cik }: { d: SecCompany; cik: string }) {
+  const ir = useIrSource(d.cik, d.tickers)
   const f = d.financials
   const fy = d.fiscalYearEnd ? `${Number(d.fiscalYearEnd.slice(2))} ${MON[Number(d.fiscalYearEnd.slice(0, 2)) - 1]}` : '–'
   const rows: [string, string | null][] = [
@@ -73,6 +88,7 @@ function Overview({ d, cik }: { d: SecCompany; cik: string }) {
   return (
     <div className="co-overview">
       <div className="co-left">
+        {ir && <IrLatest source={ir} cik={cik} />}
         {d.filings.find(isEarnings) && (
           <>
             <h3 className="sec-title">Latest results</h3>
@@ -190,6 +206,19 @@ const FORM_NAMES: Record<string, string> = {
   '144': 'Proposed sale of restricted stock', '20-F': 'Annual report (foreign issuer)', '6-K': 'Current report (foreign issuer)', '11-K': 'Employee plan annual report',
 }
 const describe = (form: string) => FORM_NAMES[form] ?? form
+
+function AddIr({ ticker }: { ticker?: string }) {
+  if (!ticker) return <Empty>This company has no ticker to link an investor relations page to.</Empty>
+  return (
+    <div className="page-scroll">
+      <div className="narrow-col pad-top">
+        <h2 className="col-title">Add {ticker}'s investor relations page</h2>
+        <p className="muted">Paste the company's IR website. Its events, press releases, slides and transcripts will show here. Until then, the SEC earnings tab has the press release and slides filed with the SEC.</p>
+        <IrSourceForm presetTicker={ticker} />
+      </div>
+    </div>
+  )
+}
 
 /* ---------- Earnings: press release and slides from 8-K Item 2.02 filings ---------- */
 

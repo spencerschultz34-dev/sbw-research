@@ -50,6 +50,20 @@ This runs through `api/calls.ts`. Without a key it uses EarningsCall's free demo
 
 Add a free key from [alphavantage.co](https://www.alphavantage.co/support/#api-key) as `ALPHAVANTAGE_API_KEY` in Vercel. When EarningsCall can't serve a company (for example on the demo or trial key), the app lists its calls with EPS against estimates and shows a speaker-labelled transcript, without audio. The free key allows 25 requests a day, and each call is cached for a week.
 
+## Investor relations pages: events, press releases, slides and transcripts
+
+Company pages have **Events** and **Press releases** tabs filled from the company's own investor relations (IR) website. Pick an earnings event to read its press release in the app, flip through its slides, open the transcript or webcast, and, where EarningsCall has the call, listen with the transcript following along.
+
+Add a company under **Settings → IR pages**: paste its IR address and ticker, and the app checks what it can find. Apple and Microsoft are set up already.
+
+This runs through `api/ir.ts`, a Vercel Edge Function, so it needs no key and works on the hosted site only. It reads three kinds of site:
+
+- **Q4 Inc. sites** (Apple and thousands of other listed companies, recognisable by `default.aspx` pages and a "Powered by Q4" footer): read in full through the site's public data feeds.
+- **Microsoft**: read from the events list on its investor pages, including the PowerPoint slides and transcripts.
+- **Any other IR page**: the page and up to three of its events or news pages are read, and their documents grouped by quarter. Pages that build themselves with JavaScript may show little.
+
+Every request names itself (`SBWResearchBot`, with `SEC_CONTACT_EMAIL` as the contact) and checks the site's robots.txt first; pages it disallows are skipped and the app says so. Results are cached at the edge for six hours. PDFs are shown through our own domain; PowerPoint and Word files open in Microsoft's free online viewer.
+
 ## Consensus estimates and segments (Business Quant)
 
 Company pages show next quarter's analyst consensus (with the low and high estimate), a beat/miss table for the last four quarters, and revenue by segment. In Vercel, add `BUSINESSQUANT_API_KEY` under Settings, Environment Variables, then redeploy. Never commit the key. The free preview covers Apple only; for any other company the sections stay hidden until the key is on a paid plan.
@@ -65,6 +79,7 @@ Company pages show next quarter's analyst consensus (with the low and high estim
 | `src/data/*` | Sample companies and events, swap for a real data source |
 | `api/sec.ts`, `src/sec.ts`, `src/pages/SecCompany.tsx` | Real SEC EDGAR data: server function, client and company page |
 | `api/calls.ts`, `src/pages/CallView.tsx` | Earnings call transcripts and audio from EarningsCall |
+| `api/ir.ts`, `src/ir.ts`, `src/pages/IrViews.tsx` | Company IR websites: events, press releases, slides, transcripts and the reader |
 | `src/chatEngine.ts` | Local stand-in for AI answers with citations |
 | `src/store.tsx` | App state, saved in the browser and, when signed in, to the account |
 | `src/auth.tsx`, `src/cloud.ts` | Sign-in screen and Supabase sync |
