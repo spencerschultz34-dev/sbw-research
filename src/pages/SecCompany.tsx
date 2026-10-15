@@ -4,6 +4,7 @@ import { ExternalLink, FileText, Headphones, Landmark } from 'lucide-react'
 import { CallView } from './CallView'
 import { archiveUrl, callExchange, isEarnings, loadCallEvents, type CallEvent, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
 import { Empty } from '../components/ui'
+import { Donut, SERIES } from '../components/visuals'
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 // SEC dates are plain calendar dates; format them without a timezone shift.
@@ -99,6 +100,8 @@ function Overview({ d, cik }: { d: SecCompany; cik: string }) {
       <div className="co-right">
         <h3 className="sec-title">Quarterly results</h3>
         {!f || !f.revenue.length ? <div className="card pad"><span className="muted">No quarterly figures in this company's XBRL data.</span></div> : <Financials f={f} />}
+        {d.tickers[0] && <Consensus ticker={d.tickers[0]} />}
+        {d.tickers[0] && <Segments ticker={d.tickers[0]} />}
       </div>
     </div>
   )
@@ -278,5 +281,117 @@ function Earnings({ d }: { d: SecCompany }) {
         </>}
       </section>
     </div>
+  )
+}
+
+/* ---------- Business Quant: consensus estimates and segments ---------- */
+
+interface BqVal { estimate: number | null; reported: number | null; high: number | null; low: number | null }
+interface BqRow { period: string; end: string; reported: boolean; revenue: BqVal | null; eps: BqVal | null }
+interface BqSegGroup { name: string; period: string | null; items: { name: string; value: number }[] }
+
+function useBq<T>(type: string, ticker: string) {
+  const [data, setData] = useState<T | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+  useEffect(() => {
+    setData(null); setNote(null)
+    let on = true
+    fetch(`/api/bq?type=${type}&ticker=${encodeURIComponent(ticker)}`)
+      .then(async (r) => {
+        const body = r.headers.get('content-type')?.includes('json') ? await r.json() : null
+        if (!on) return
+        if (r.ok && body) setData(body)
+        else if (r.status === 403) setNote(body?.error ?? null) // company not in the plan: say so once
+      })
+      .catch(() => {})
+    return () => { on = false }
+  }, [type, ticker])
+  return { data, note }
+}
+
+const pct = (a: number, b: number) => ((a - b) / Math.abs(b)) * 100
+const signed = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+
+function Consensus({ ticker }: { ticker: string }) {
+  const { data, note } = useBq<{ quarters: BqRow[] }>('estimates', ticker)
+  if (note) return <><h3 className="sec-title">Consensus estimates</h3><div className="card pad"><span className="muted small">{note}</span></div></>
+  if (!data?.quarters.length) return null
+  const next = data.quarters.find((q) => !q.reported)
+  const past = data.quarters.filter((q) => q.reported && q.revenue?.reported != null).slice(-4).reverse()
+  const cell = (v: number | null | undefined, eps: boolean) => (v == null ? '–' : eps ? v.toFixed(2) : money(v))
+  return (
+    <>
+      <h3 className="sec-title">Consensus estimates</h3>
+      <div className="card pad">
+        {next && (
+          <>
+            <b>Next quarter · {next.period} <span className="muted small">(period ends {day(next.end)})</span></b>
+            <div className="table-wrap">
+              <table className="num-table">
+                <thead><tr><th>USD</th><th>Consensus</th><th>Low</th><th>High</th></tr></thead>
+                <tbody>
+                  <tr><td>Revenue</td><td>{cell(next.revenue?.estimate, false)}</td><td>{cell(next.revenue?.low, false)}</td><td>{cell(next.revenue?.high, false)}</td></tr>
+                  <tr><td>EPS</td><td>{cell(next.eps?.estimate, true)}</td><td>{cell(next.eps?.low, true)}</td><td>{cell(next.eps?.high, true)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        {past.length > 0 && (
+          <>
+            <b>Beat / miss, last {past.length} quarters</b>
+            <div className="table-wrap">
+              <table className="num-table">
+                <thead><tr><th>Quarter</th><th>Revenue</th><th>vs est.</th><th>EPS</th><th>vs est.</th></tr></thead>
+                <tbody>
+                  {past.map((q) => {
+                    const rv = q.revenue?.reported != null && q.revenue.estimate ? pct(q.revenue.reported, q.revenue.estimate) : null
+                    const ev = q.eps?.reported != null && q.eps.estimate ? pct(q.eps.reported, q.eps.estimate) : null
+                    return (
+                      <tr key={q.end}>
+                        <td>{q.period}</td>
+                        <td>{cell(q.revenue?.reported, false)}</td><td className={rv == null ? '' : rv >= 0 ? 'pos' : 'neg'}>{rv == null ? '–' : signed(rv)}</td>
+                        <td>{cell(q.eps?.reported, true)}</td><td className={ev == null ? '' : ev >= 0 ? 'pos' : 'neg'}>{ev == null ? '–' : signed(ev)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        <p className="muted small">Analyst consensus from Business Quant.</p>
+      </div>
+    </>
+  )
+}
+
+function Segments({ ticker }: { ticker: string }) {
+  const { data } = useBq<{ groups: BqSegGroup[] }>('segments', ticker)
+  if (!data?.groups.length) return null
+  return (
+    <>
+      <h3 className="sec-title">Revenue by segment{data.groups[0].period ? <span className="muted small"> · fiscal year ended {day(data.groups[0].period)}</span> : null}</h3>
+      <div className="seg-grid">
+        {data.groups.map((g) => {
+          const total = g.items.reduce((a, x) => a + x.value, 0)
+          // Keep the chart readable: the largest four, everything else as "Other".
+          const top = g.items.slice(0, 4)
+          const rest = g.items.slice(4).reduce((a, x) => a + x.value, 0)
+          const items = [...top, ...(rest > 0 ? [{ name: 'Other', value: rest }] : [])].map((x) => ({ name: x.name, value: x.value, pct: (x.value / total) * 100 }))
+          return (
+            <div key={g.name} className="card seg-card">
+              <div className="seg-title"><b>{g.name}</b><small>Total {money(total)}</small></div>
+              <div className="seg-body">
+                <Donut items={items} size={96} />
+                <ul className="legend">
+                  {items.map((x, i) => <li key={x.name}><i style={{ background: SERIES[i % SERIES.length] }} /><span>{x.name}</span><b>{Math.round(x.pct)}%</b></li>)}
+                </ul>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }

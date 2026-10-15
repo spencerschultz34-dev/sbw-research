@@ -50,6 +50,10 @@ This runs through `api/calls.ts`. Without a key it uses EarningsCall's free demo
 
 Add a free key from [alphavantage.co](https://www.alphavantage.co/support/#api-key) as `ALPHAVANTAGE_API_KEY` in Vercel. When EarningsCall can't serve a company (for example on the demo or trial key), the app lists its calls with EPS against estimates and shows a speaker-labelled transcript, without audio. The free key allows 25 requests a day, and each call is cached for a week.
 
+## Consensus estimates and segments (Business Quant)
+
+Company pages show next quarter's analyst consensus (with the low and high estimate), a beat/miss table for the last four quarters, and revenue by segment. In Vercel, add `BUSINESSQUANT_API_KEY` under Settings, Environment Variables, then redeploy. Never commit the key. The free preview covers Apple only; for any other company the sections stay hidden until the key is on a paid plan.
+
 ## Project layout
 
 | Path | What it holds |

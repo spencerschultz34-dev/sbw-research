@@ -678,3 +678,5 @@ svg .axis { fill: var(--muted); font: 9px var(--ui); }
 .call-scroll { flex: 1; min-height: 0; overflow: auto; }
 .call .sent { cursor: pointer; }
 .qna-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+.seg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.seg-grid .seg-card { flex: none; }
