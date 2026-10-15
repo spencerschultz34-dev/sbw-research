@@ -27,6 +27,8 @@ export interface KeywordAlert {
   id: string; keyword: string; scope: 'All companies' | 'Followed companies' | 'Watchlists'; watchlistIds: string[]
   docTypes: ('Transcripts' | 'Slides' | 'Reports')[]; enabled: boolean
 }
+/** A company's investor relations website, read by /api/ir. `cik` links it to the SEC company page. */
+export interface IrSource { id: string; ticker: string; cik: number | null; name: string; url: string; addedAt: string }
 export interface ChatMessage { role: 'user' | 'assistant'; text: string; scope?: string[]; model?: string; answerId?: string; answer?: Answer; files?: string[]; web?: boolean }
 export interface Chat { id: string; title: string; date: string; messages: ChatMessage[]; automationId?: string; unread?: boolean }
 export interface Prompt { id: string; name: string; text: string }
@@ -62,6 +64,7 @@ interface AppState {
   readActivity: string[]
   recentSearches: string[]
   prefs: Prefs
+  irSources: IrSource[]
 }
 
 const DEFAULT_STATE: AppState = {
@@ -112,6 +115,10 @@ const DEFAULT_STATE: AppState = {
   queue: ['nwb-q32026', 'hbw-msu-september'],
   progress: { 'pncr-rail': 900, 'strc-q22026': 2000, 'orbt-gscc': 400, 'hbw-q4fy26': 1300 },
   readActivity: [],
+  irSources: [
+    { id: 'ir-aapl', ticker: 'AAPL', cik: 320193, name: 'Apple Inc.', url: 'https://investor.apple.com/investor-relations/default.aspx', addedAt: '2026-10-15T00:00:00Z' },
+    { id: 'ir-msft', ticker: 'MSFT', cik: 789019, name: 'Microsoft Corporation', url: 'https://www.microsoft.com/en-us/investor', addedAt: '2026-10-15T00:00:00Z' },
+  ],
   recentSearches: ['pack architecture', 'truck-to-rail conversion', 'cyber security', 'orbital compute', 'net interest income'],
   prefs: {
     theme: 'Dark', timeFormat: '12', timezone: 'UTC-05:00 - Central Time - Chicago', pointer: true, hideEmptyAutomations: true,
