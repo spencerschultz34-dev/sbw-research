@@ -15,6 +15,7 @@ import { PagedSecRelease } from './PagedSecRelease'
 import { SourceSlidesView } from './SourceSlidesView'
 import { OfficialEventRelease, OfficialEventTranscript } from './OfficialEventRelease'
 import { GeneratedEventOverview } from './GeneratedEventOverview'
+import { downloadTranscriptPdf } from './exportTranscriptPdf'
 
 declare const __ARTIFACT__: boolean
 
@@ -259,36 +260,32 @@ function sentences(text: string) {
 /** One card per short spoken passage (like the Quartr transcript screenshot).
  * Never modify the spoken words; preserve original paragraph ids for citations.
  * Sentence timings remain attached to the correct sub-card. */
+/** Keep each coherent idea together. Split at natural rhetorical transitions, or
+ * at sentence boundaries only as a readability fallback for unusually long turns.
+ * The spoken words and original sentence timestamps are never rewritten. */
 function transcriptCards(paragraph: Paragraph, nextStart: number): Paragraph[] {
   const list = paragraph.sents?.length
-    ? paragraph.sents.map(x => ({ ...x, text: x.text.trim() }))
-    : sentences(paragraph.text).map(text => ({ text: text.trim(), t: null as number | null }))
-  const cards: Paragraph[] = []
-  let buffer: typeof list = []
-  let chars = 0
-  const push = () => {
-    if (!buffer.length) return
-    const first = buffer[0]
-    const ix = cards.length
-    cards.push({
-      ...paragraph,
-      id: ix === 0 ? paragraph.id : paragraph.id + '--' + ix,
-      start: first.t ?? paragraph.start,
-      text: buffer.map(x => x.text).join(' ').trim(),
-      sents: buffer,
-    })
-    buffer = []; chars = 0
+    ? paragraph.sents.map(x=>({...x,text:x.text.trim()}))
+    : sentences(paragraph.text).map(text=>({text:text.trim(),t:null as number|null}))
+  const thoughtStart=/^(?:first(?:ly)?|second(?:ly)?|third(?:ly)?|next|finally|turning (?:to|back)|moving (?:to|on)|on the (?:other|second|product|commercial|consumer)|as for|in terms of|with regard to|another (?:point|thing|area|way)|let me (?:start|talk|shift)|the (?:second|third|next) (?:thing|piece|point)|now,? (?:on|if|turning|let's)|to your (?:first|second|question)|from a (?:financial|product|customer)|so,? (?:first|second|third))\b/i
+  const cards:Paragraph[]=[]
+  let buffer:typeof list=[], chars=0
+  const push=()=>{
+    if(!buffer.length)return
+    const first=buffer[0],index=cards.length
+    cards.push({...paragraph,id:index?paragraph.id+'--'+index:paragraph.id,
+      start:first.t??paragraph.start,text:buffer.map(x=>x.text).join(' '),sents:buffer})
+    buffer=[];chars=0
   }
-  for (const [sentenceIndex, original] of list.entries()) {
-    const sentence = { ...original, t: original.t ?? (paragraph.start + sentenceIndex * Math.max(0, nextStart - paragraph.start) / Math.max(1, list.length)) }
-    const len = sentence.text.length
-    if (buffer.length && (chars + len > 510 || (buffer.length >= 5 && chars > 210))) push()
-    buffer.push(sentence)
-    chars += len + 1
-    if (chars > 510 && buffer.length === 1) push()
-  }
+  list.forEach((original,i)=>{
+    const sentence={...original,t:original.t??(paragraph.start+i*Math.max(0,nextStart-paragraph.start)/Math.max(1,list.length))}
+    const isNewThought=thoughtStart.test(sentence.text)
+    const last=buffer[buffer.length-1]
+    if(buffer.length && ((isNewThought&&chars>=160) || (chars>1200&&/[.!?]$/.test(last.text.trim()))))push()
+    buffer.push(sentence);chars+=sentence.text.length+1
+  })
   push()
-  return cards.length ? cards : [paragraph]
+  return cards.length?cards:[paragraph]
 }
 
 function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string; nonce?: number }) {
@@ -355,12 +352,9 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
   }
 
   const download = () => {
-    if (__ARTIFACT__) { store.notify('Downloads work in the hosted version of the app'); return }
-    const txt = t.paragraphs.map((p) => `${t.speakers[p.speaker].name} (${fmtStamp(p.start)})\n${p.text}`).join('\n\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }))
-    a.download = `${companyById(ev.companyId).ticker}-${ev.title.replace(/\s+/g, '-')}-transcript.txt`
-    a.click()
+    if (__ARTIFACT__) { store.notify('PDF exports work in the hosted version of the app'); return }
+    try { downloadTranscriptPdf(ev, t) }
+    catch { store.notify('Could not prepare the PDF export. Please try again.') }
   }
 
   const jump = (sec: number) => {
@@ -373,7 +367,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
     <div className="doc-view">
       <div className="doc-toolbar">
         <button className="ghost-icon" title="Copy transcript" onClick={copyAll}><Copy size={15} /></button>
-        <button className="ghost-icon" title="Download transcript" onClick={download}><Download size={15} /></button>
+        <button className="ghost-icon" title="Download SBW-branded transcript PDF" onClick={download}><Download size={15} /></button>
         <button className={`ghost-icon${sync ? ' on' : ''}`} title={sync ? 'Following audio' : 'Follow audio'} onClick={() => setSync(!sync)}><RefreshCw size={15} /></button>
         <span className="tb-sep" />
         <Menu width={260} trigger={(_o, tg) => <button className="text-btn" onClick={tg}>Chapters<ChevronDown size={14} /></button>}>
