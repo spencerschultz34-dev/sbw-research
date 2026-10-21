@@ -11,6 +11,8 @@ import { usePlayer, useStore, uid, type PanelTab } from '../store'
 import { fmtDate, fmtDur, fmtNum, fmtStamp, pctChange, eventWhen, fmtDayMonth } from '../format'
 import { Avatar, Logo, Menu, Modal, ReportIcon, TimingChips, Ticker } from './ui'
 import { PaperPage, SlideView } from './visuals'
+import { PagedSecRelease } from './PagedSecRelease'
+import { SourceSlidesView } from './SourceSlidesView'
 
 declare const __ARTIFACT__: boolean
 
@@ -19,6 +21,7 @@ export function EventPanel() {
   const store = useStore()
   const player = usePlayer()
   const { panel, expanded, setExpanded, closePanel, openEvent } = store
+  useEffect(() => { if (panel?.kind === 'event') { void ensureReports(panel.eventId); void ensureTranscript(panel.eventId) } }, [panel?.kind, panel?.kind === 'event' ? panel.eventId : null])
   if (panel?.kind !== 'event') return null
   const ev = eventById(panel.eventId)
   if (!ev) return null
@@ -29,7 +32,7 @@ export function EventPanel() {
   const tabs: { id: PanelTab; label: string; has: boolean; count?: number }[] = [
     { id: 'overview', label: 'Overview', has: true },
     { id: 'transcript', label: 'Transcript', has: !!ev.transcript || !!ev.call },
-    { id: 'slides', label: 'Slides', has: !!ev.slides },
+    { id: 'slides', label: 'Slides', has: true },
     { id: 'report', label: 'Report', has: ev.reports.length > 0 || !!ev.filing, count: ev.reports.length > 1 ? ev.reports.length : undefined },
   ]
   const all = eventsForCompany(ev.companyId).slice().sort((a,b)=>b.date.localeCompare(a.date))
@@ -77,7 +80,7 @@ export function EventPanel() {
         {tab === 'overview' && <Overview ev={ev} />}
         {tab === 'transcript' && (ev.transcript ? <TranscriptView ev={ev} focus={panel.focus} nonce={panel.nonce} /> : <Loading ev={ev} what="transcript" />)}
         {tab === 'report' && (ev.reports.length > 0 ? <ReportView key={ev.reports.length} ev={ev} focus={panel.focus} /> : <Loading ev={ev} what="report" />)}
-        {tab === 'slides' && (ev.slides?.length ? <SlidesView ev={ev} focus={panel.focus} /> : <div className="ep-scroll"><div className="empty">No source presentation slides are available for this event.</div></div>)}
+        {tab === 'slides' && (ev.slides?.length ? <SlidesView ev={ev} focus={panel.focus} /> : <SourceSlidesView ev={ev} />)}
       </div>
     </div>
   )
@@ -469,7 +472,7 @@ function ReportView({ ev, focus }: { ev: CompanyEvent; focus?: string }) {
             <span className="sbw-original-doc-label">{item.title}{item.form && <small>{item.form}</small>}</span>
           </button>)}
         </aside>}
-        <iframe key={doc.url} className="earn-frame" title={doc.title} src={doc.url}/>
+        { /\.pdf(?:[?#]|$)/i.test(doc.url) ? <iframe key={doc.url} className="earn-frame" title={doc.title} src={doc.url}/> : <PagedSecRelease key={doc.url} url={doc.url} title={doc.title}/> }
       </div>
     </div>
   )
