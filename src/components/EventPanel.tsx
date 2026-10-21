@@ -32,7 +32,7 @@ export function EventPanel() {
     { id: 'slides', label: 'Slides', has: !!ev.slides },
     { id: 'report', label: 'Report', has: ev.reports.length > 0 || !!ev.filing, count: ev.reports.length > 1 ? ev.reports.length : undefined },
   ]
-  const all = eventsForCompany(ev.companyId)
+  const all = eventsForCompany(ev.companyId).slice().sort((a,b)=>b.date.localeCompare(a.date))
 
   return (
     <div className="event-panel">
@@ -73,11 +73,11 @@ export function EventPanel() {
           </>
         )}
       </div>
-      <div className="ep-body">
+      <div className="ep-body sbw-msft-reader">
         {tab === 'overview' && <Overview ev={ev} />}
         {tab === 'transcript' && (ev.transcript ? <TranscriptView ev={ev} focus={panel.focus} nonce={panel.nonce} /> : <Loading ev={ev} what="transcript" />)}
         {tab === 'report' && (ev.reports.length > 0 ? <ReportView key={ev.reports.length} ev={ev} focus={panel.focus} /> : <Loading ev={ev} what="report" />)}
-        {tab === 'slides' && ev.slides && <SlidesView ev={ev} focus={panel.focus} />}
+        {tab === 'slides' && (ev.slides?.length ? <SlidesView ev={ev} focus={panel.focus} /> : <div className="ep-scroll"><div className="empty">No source presentation slides are available for this event.</div></div>)}
       </div>
     </div>
   )
@@ -103,7 +103,8 @@ function Overview({ ev }: { ev: CompanyEvent }) {
           <div className="live-banner"><span className="live-badge"><i />LIVE</span>The call is in progress. The summary updates when the transcript is final.
             <button className="btn btn-light btn-sm" onClick={() => { player.play(ev.id); openEvent(ev.id, 'transcript') }}>Listen live</button></div>
         )}
-        <h1>{ev.headline ?? `${companyById(ev.companyId).name} ${ev.title} results`}</h1>
+        <div className="sbw-summary-kicker">Earnings call · {fmtDate(ev.date)}</div>
+        <h1>{ev.headline ?? `${companyById(ev.companyId).name} ${ev.title} earnings`}</h1>
         {ev.metrics?.some((m) => m.actual) && (
           <>
             <div className="bm-label">Beat/miss vs estimates in USD <Info size={13} /> <span className="muted">Reported {fmtDate(ev.date)}</span></div>
@@ -128,10 +129,14 @@ function Overview({ ev }: { ev: CompanyEvent }) {
           </section>
         ))}
         {!ev.summary && (
-          <div className="row gap8 wrap">
+          <div className="sbw-summary-empty">
+            <h2>Source materials</h2>
+            <p className="muted">An editorial earnings summary has not been generated for this event. Use the original call and SEC documents below for primary-source research.</p>
+            <div className="row gap8 wrap">
             {ev.call && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'transcript')}>Read the transcript</button>}
             {ev.filing && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'report')}>Earnings release</button>}
             {!ev.call && !ev.filing && <p className="muted">Nothing has been published for this event yet.</p>}
+            </div>
           </div>
         )}
       </article>
@@ -187,6 +192,22 @@ export function ConsensusTable({ ev, compact }: { ev: CompanyEvent; compact?: bo
 }
 
 /* ---------- Transcript ---------- */
+
+/** Split long speaking turns into short FactSet-style reading paragraphs, preserving per-sentence seek targets. */
+function transcriptGroups(lines: string[]): number[][] {
+  const groups: number[][] = []
+  let group: number[] = []
+  let chars = 0
+  lines.forEach((line, i) => {
+    if (group.length && (chars + line.length > 390 || (group.length >= 3 && chars > 155))) {
+      groups.push(group); group = []; chars = 0
+    }
+    group.push(i)
+    chars += line.length
+  })
+  if (group.length) groups.push(group)
+  return groups
+}
 
 function sentences(text: string) {
   return text.match(/[^.!?]+[.!?]+["”]?\s*|[^.!?]+$/g) ?? [text]
@@ -279,7 +300,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
             <button key={ch.title} className="menu-item" onClick={() => { jump(ch.start); close() }}><span>{ch.title}</span><span className="muted mono">{fmtStamp(ch.start)}</span></button>
           ))}
         </Menu>
-        <button className="text-btn chip-btn" onClick={() => jump(t.qnaStart)}>Q&amp;A</button>
+        <button className="text-btn chip-btn" disabled={!t.qnaStart && t.qnaStart !== 0} title={t.qnaStart || t.qnaStart === 0 ? "Jump to questions and answers" : "Q&A start not identified"} onClick={() => jump(t.qnaStart)}>Q&amp;A</button>
         <span className="grow" />
         {find === null
           ? <button className="text-btn" onClick={() => setFind('')}><Search size={14} />Find</button>
@@ -306,6 +327,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
           const sents = p.sents?.map((x) => x.text + ' ') ?? sentences(p.text)
           const per = (next - p.start) / sents.length
           const startOf = (i: number) => p.sents?.[i]?.t ?? p.start + i * per
+          const groups = transcriptGroups(sents)
           const curSent = !cur ? -1 : p.sents ? p.sents.reduce((k, x, i) => (x.t != null && x.t <= player.pos ? i : k), 0) : Math.floor((player.pos - p.start) / per)
           return (
             <div key={p.id} id={`para-${p.id}`} className={`para${cur ? ' cur' : ''}${sp.isAnalyst ? ' analyst' : ''}${matches[hit] === p.id ? ' found' : ''}`}>
@@ -316,13 +338,15 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
                 <button className={`ghost-icon para-save${isSaved ? ' on' : ''}`} title={isSaved ? 'Saved' : 'Save paragraph'} onClick={() => !isSaved && savePara(p)}><Bookmark size={14} fill={isSaved ? 'currentColor' : 'none'} /></button>
                 {timed && <button className="stamp mono" title="Play from here" onClick={() => ev.hasAudio && player.play(ev.id, p.start)}>{fmtStamp(p.start)}</button>}
               </div>
-              <p data-pid={p.id}>
-                {sents.map((s, i) => (
-                  <span key={i} className={`sent${i === curSent ? ' now' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; if (timed && ev.hasAudio) player.play(ev.id, startOf(i)) }}>
-                    <Marked text={s} highlights={hls} find={find ?? ''} />
-                  </span>
-                ))}
-              </p>
+              <div data-pid={p.id} className="sbw-transcript-paragraphs">
+                {groups.map((group, j) => <p key={j} className="sbw-transcript-reading-paragraph">
+                  {group.map((i) => (
+                    <span key={i} className={`sent${i === curSent ? ' now' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; if (timed && ev.hasAudio) player.play(ev.id, startOf(i)) }}>
+                      <Marked text={sents[i]} highlights={hls} find={find ?? ''} />
+                    </span>
+                  ))}
+                </p>)}
+              </div>
             </div>
           )
         })}
