@@ -1,0 +1,60 @@
+name: Earnings data aggregator
+
+on:
+  # Once merged, scan due company IR targets every 30 minutes.
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: 'Optional ticker to ingest (e.g. HOOD)'
+        required: false
+        type: string
+      bootstrap:
+        description: 'Register company sources from worker/companies.json'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sbw-company-ir-ingestion
+  cancel-in-progress: false
+
+jobs:
+  index-company-earnings:
+    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: worker
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - name: Check credentials
+        if: env.SUPABASE_URL == '' || env.SUPABASE_SERVICE_ROLE_KEY == ''
+        run: |
+          echo "::error::Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in GitHub Actions secrets."
+          exit 1
+      - name: Index due source documents
+        env:
+          SYMBOL: ${{ inputs.symbol }}
+          BOOTSTRAP: ${{ inputs.bootstrap }}
+        run: |
+          FLAGS=""
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "$BOOTSTRAP" = "true" ]; then FLAGS="$FLAGS --bootstrap"; fi
+          if [ -n "$SYMBOL" ]; then FLAGS="$FLAGS --symbol $SYMBOL"; fi
+          node src/aggregate.ts --max 25 $FLAGS
