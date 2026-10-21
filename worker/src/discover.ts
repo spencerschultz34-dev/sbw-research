@@ -72,6 +72,9 @@ async function tryPage(browser: Browser, url: string, timeoutMs: number, log: (m
       if (played < 3 && await play(page)) { played++; log('Pressed play') }
       await new Promise((r) => setTimeout(r, 3000))
     }
+    // Some players (Apple's, for one) keep the stream address in the page and only fetch it on a real click:
+    // take it from the page source instead.
+    if (!best(hits)) for (const u of await mediaInSource(page)) hits.push({ url: u, referer: page.url() })
     const hit = best(hits)
     if (hit) {
       const cookies = await ctx.cookies(hit.url)
@@ -84,6 +87,7 @@ async function tryPage(browser: Browser, url: string, timeoutMs: number, log: (m
       log(`  now on ${page.url()}; frames: ${page.frames().map((f) => f.url().split('?')[0]).filter((u) => u !== 'about:blank').join(', ')}`)
       log(`  media-like requests: ${[...new Set(seenReqs)].slice(0, 25).join(' | ') || 'none'}`)
       log(`  player links: ${links.join(', ') || 'none'}; anchors: ${(await anchors(page)).join(' | ')}`)
+      log(`  buttons: ${(await page.$$eval('button, [role=button]', (els) => els.map((e) => `${e.getAttribute('aria-label') ?? ''}/${(e.textContent ?? '').trim().slice(0, 30)}/${e.className}`.slice(0, 90))).catch(() => [] as string[])).slice(0, 20).join(' | ')}`)
     }
     return { found: null, links }
   } catch (e) {
@@ -151,6 +155,18 @@ async function play(page: Page): Promise<boolean> {
     }
   }
   return false
+}
+
+/** Stream addresses written into any frame's HTML or inline scripts (JSON-escaped slashes included). */
+async function mediaInSource(page: Page) {
+  const out = new Set<string>()
+  for (const f of page.frames()) {
+    const html = (await f.content().catch(() => '')).replace(/\\\//g, '/').replace(/&quot;/g, '"')
+    for (const m of html.matchAll(/https?:\/\/[^\s"'<>()\\]+?\.(?:m3u8|mp3|m4a|mp4)(?:\?[^\s"'<>\\]*)?(?=["'\s<>\\)]|$)/gi)) {
+      if (!NOT_CALL.test(new URL(m[0]).pathname)) out.add(m[0].replace(/&amp;/g, '&'))
+    }
+  }
+  return [...out]
 }
 
 /** Every link that mentions the call or the webcast, for debugging a page the reader misses. */
