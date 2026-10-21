@@ -81,7 +81,7 @@ async function getJson<T>(url: string): Promise<T | null> {
   } catch { return null }
 }
 
-interface Profile { name: string | null; marketCap: number | null; logo: string | null; industry: string | null; country: string | null; currency: string | null }
+interface Profile { name: string | null; marketCap: number | null; logo: string | null; industry: string | null; country: string | null; currency: string | null; website: string | null }
 interface CalRow { symbol: string; date: string; hour: string | null; year: number; quarter: number; eps: { actual: number | null; estimate: number | null }; revenue: { actual: number | null; estimate: number | null } }
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
@@ -112,6 +112,7 @@ async function hydrate(id: string) {
       industry: profile.industry ?? companyById(id).industry,
       marketCap: profile.marketCap ? `${fmtCap(profile.marketCap)} ${profile.currency ?? 'USD'}` : '',
       country: profile.country ?? 'US',
+      website: profile.website ?? undefined,
     })
   }
   changed()
