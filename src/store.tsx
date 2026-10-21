@@ -29,6 +29,8 @@ export interface KeywordAlert {
   id: string; keyword: string; scope: 'All companies' | 'Followed companies' | 'Watchlists'; watchlistIds: string[]
   docTypes: ('Transcripts' | 'Slides' | 'Reports')[]; enabled: boolean
 }
+/** Investor relations source linked to a company. */
+export interface IrSource { id: string; ticker: string; cik: number | null; name: string; url: string; addedAt: string }
 export interface ChatMessage { role: 'user' | 'assistant'; text: string; scope?: string[]; model?: string; answerId?: string; answer?: Answer; files?: string[]; web?: boolean }
 export interface Chat { id: string; title: string; date: string; messages: ChatMessage[]; automationId?: string; unread?: boolean }
 export interface Prompt { id: string; name: string; text: string }
@@ -64,6 +66,7 @@ interface AppState {
   progress: Record<string, number>
   readActivity: string[]
   recentSearches: string[]
+  irSources: IrSource[]
   prefs: Prefs
 }
 
@@ -91,6 +94,10 @@ const DEFAULT_STATE: AppState = {
   progress: {},
   readActivity: [],
   recentSearches: [],
+  irSources: [
+    { id: 'ir-aapl', ticker: 'AAPL', cik: 320193, name: 'Apple Inc.', url: 'https://investor.apple.com/investor-relations/default.aspx', addedAt: '2026-10-15T00:00:00Z' },
+    { id: 'ir-msft', ticker: 'MSFT', cik: 789019, name: 'Microsoft Corporation', url: 'https://www.microsoft.com/en-us/investor', addedAt: '2026-10-15T00:00:00Z' },
+  ],
   prefs: {
     theme: 'Dark', timeFormat: '12', timezone: 'UTC-05:00 - Central Time - Chicago', pointer: true, hideEmptyAutomations: true,
     edge: true, daily: true, weekly: false, recapWatchlist: 'Followed companies', deliveryHour: 7, languages: ['English'],
