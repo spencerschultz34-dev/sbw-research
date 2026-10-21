@@ -22,6 +22,7 @@ export interface Company {
   exchange?: string
   fye?: string // fiscal year end as MMDD, from the SEC
   logo?: string
+  website?: string // verified company website provided by market profile, used for generic IR source discovery
 }
 
 export type EventType =

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Download, ExternalLink, Minus, Plus, Search, X, PanelLeftClose } from 'lucide-react'
 
+import { loadIrArticle } from '../ir'
 type Block = { kind: 'heading' | 'text' | 'table'; text: string; rows?: string[][] }
 type Page = Block[]
 const clean = (s: string) => s.replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim()
@@ -75,7 +76,7 @@ function paginate(blocks:Block[]):Page[] {
 }
 
 /** True page navigation for SEC HTML releases instead of a continuous iframe. */
-export function PagedSecRelease({url,title}:{url:string;title:string}) {
+export function PagedSecRelease({url,title,official=false}:{url:string;title:string;official?:boolean}) {
   const [blocks,setBlocks]=useState<Block[]|null>(null)
   const [error,setError]=useState('')
   const [page,setPage]=useState(0)
@@ -86,12 +87,15 @@ export function PagedSecRelease({url,title}:{url:string;title:string}) {
   useEffect(()=>{
     let active=true
     setBlocks(null);setError('');setPage(0)
-    fetch(url).then(async r=>{
-      if(!r.ok)throw Error('SEC document could not be retrieved')
-      const ct=r.headers.get('content-type')||''
-      if(/pdf/i.test(ct))throw Error('This filing is a PDF. Open the original document.')
-      return r.text()
-    }).then(html=>{if(active){const b=extract(html);if(!b.length)throw Error('No readable document text was found');setBlocks(b)}})
+    const source = official
+      ? loadIrArticle(url).then(article=>article.html)
+      : fetch(url).then(async r=>{
+          if(!r.ok)throw Error('SEC document could not be retrieved')
+          const ct=r.headers.get('content-type')||''
+          if(/pdf/i.test(ct))throw Error('This filing is a PDF. Open the original document.')
+          return r.text()
+        })
+    source.then(html=>{if(active){const b=extract(html);if(!b.length)throw Error('No readable document text was found');setBlocks(b)}})
       .catch(e=>{if(active)setError(e instanceof Error?e.message:'Could not read the release')})
     return()=>{active=false}
   },[url])
@@ -121,9 +125,9 @@ export function PagedSecRelease({url,title}:{url:string;title:string}) {
     <div className="sbw-paged-layout">
       {thumbs && <aside className="sbw-paged-thumbnails" aria-label="Release pages">{pages.map((p,i)=><button key={i} className={`sbw-paged-thumb${page===i?' current':''}`} onClick={()=>goto(i)}><div className="sbw-thumb-paper">{p.slice(0,9).map((b,j)=><div key={j} className={b.kind==='heading'?'line hd':'line'} style={{width:`${Math.min(96,Math.max(28,b.text.length/3))}%`}}/>)}</div><span>{i+1}</span></button>)}</aside>}
       <div className="sbw-paged-canvas">
-        {error?<div className="sbw-doc-message">{error}. <a href={url} target="_blank" rel="noreferrer">Open the original filing <ExternalLink size={12}/></a></div>:!blocks?<div className="sbw-doc-message">Loading original SEC press release…</div>:pages.length===0?<div className="sbw-doc-message">No content available.</div>:
+        {error?<div className="sbw-doc-message">{error}. <a href={url} target="_blank" rel="noreferrer">Open the original filing <ExternalLink size={12}/></a></div>:!blocks?<div className="sbw-doc-message">Loading original company earnings release…</div>:pages.length===0?<div className="sbw-doc-message">No content available.</div>:
         <article className="sbw-document-paper" style={{transform:`scale(${zoom})`,transformOrigin:'top center'}} aria-label={`${title} page ${page+1}`}>
-          <header className="sbw-document-paper-header"><small>SEC EDGAR · Original filing content</small><span>{page+1} / {pages.length}</span></header>
+          <header className="sbw-document-paper-header"><small>{official?'Company investor relations · Official earnings release':'SEC EDGAR · Original filing content'}</small><span>{page+1} / {pages.length}</span></header>
           {pages[page].map((b,i)=>b.kind==='table'?<div className="sbw-paper-table-scroll" key={i}><table><tbody>{b.rows?.map((row,j)=><tr key={j}>{row.map((v,k)=><td key={k}>{highlight(v)}</td>)}</tr>)}</tbody></table></div>:b.kind==='heading'?<h2 key={i}>{highlight(b.text)}</h2>:<p key={i}>{highlight(b.text)}</p>)}
           <footer className="sbw-document-paper-footer">{title} · Page {page+1}</footer>
         </article>}

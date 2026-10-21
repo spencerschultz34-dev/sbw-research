@@ -97,6 +97,7 @@ const DEFAULT_STATE: AppState = {
   irSources: [
     { id: 'ir-aapl', ticker: 'AAPL', cik: 320193, name: 'Apple Inc.', url: 'https://investor.apple.com/investor-relations/default.aspx', addedAt: '2026-10-15T00:00:00Z' },
     { id: 'ir-msft', ticker: 'MSFT', cik: 789019, name: 'Microsoft Corporation', url: 'https://www.microsoft.com/en-us/investor', addedAt: '2026-10-15T00:00:00Z' },
+    { id: 'ir-hood', ticker: 'HOOD', cik: 1783879, name: 'Robinhood Markets, Inc.', url: 'https://investors.robinhood.com/financials/quarterly-results', addedAt: '2026-10-21T00:00:00Z' },
   ],
   prefs: {
     theme: 'Dark', timeFormat: '12', timezone: 'UTC-05:00 - Central Time - Chicago', pointer: true, hideEmptyAutomations: true,
