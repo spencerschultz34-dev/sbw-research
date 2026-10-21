@@ -353,7 +353,7 @@ export function ensureTranscript(eventId: string): Promise<void> {
                 : {name:'Brad Zelnick',role:'Analyst · Deutsche Bank'}
               if(!identifiedKeys.has(analyst.name)) {
                 identifiedKeys.set(analyst.name,speakers.length)
-                speakers.push({...analyst,isAnalyst:true})
+                speakers.push({...analyst,isOperator:false,isAnalyst:true})
               }
               const turn = (id:string,index:number,part:typeof all,start:number)=>({
                 id,speaker:index,start,text:part.map(x=>x.text).join(' '),chapter,sents:part
