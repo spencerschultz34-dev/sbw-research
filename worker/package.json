@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node src/run.ts",
-    "check": "tsc --noEmit -p ."
+    "check": "tsc --noEmit -p .",
+    "aggregate": "node src/aggregate.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",
