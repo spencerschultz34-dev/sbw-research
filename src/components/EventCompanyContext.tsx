@@ -48,14 +48,14 @@ export function EventCompanyContext({ companyId, selectedEventId }: { companyId:
   </article>
   return <div className="sbw-company-context" aria-label={`${company.name} research overview`}>
     <div className="sbw-context-head"><Logo id={companyId} size={27}/><button className="sbw-context-company-name" onClick={() => navigateCompany()}>{company.name}</button><span className="sbw-context-ticker">{company.ticker}</span><span className="grow"/><FollowButton id={companyId} small/></div>
-    <nav className="sbw-context-tabs" aria-label="Company tabs"><button className="on" onClick={navigateCompany}>Overview</button><button onClick={navigateCompany}>Events</button><button onClick={navigateCompany}>Documents</button></nav>
+    <nav className="sbw-context-tabs" aria-label="Company tabs"><button className="on" onClick={() => navigateCompany()}>Overview</button><button onClick={() => navigateCompany()}>Events</button><button onClick={() => navigateCompany()}>Documents</button></nav>
     <div className="sbw-context-scroll">
       {future.length>0 && <section><h3>Upcoming event</h3>{eventCard(future[0])}</section>}
       {latest && <section><h3>Latest event</h3>{eventCard(latest)}</section>}
-      <section><div className="sbw-context-section-head"><h3>Earlier events</h3><button onClick={navigateCompany}>See all <ChevronRight size={12}/></button></div>
+      <section><div className="sbw-context-section-head"><h3>Earlier events</h3><button onClick={() => navigateCompany()}>See all <ChevronRight size={12}/></button></div>
         {past.length ? <div className="sbw-context-event-list">{past.slice(0,6).map(e=>eventCard(e,true))}</div>:<p className="sbw-context-empty">No earlier earnings events are indexed yet.</p>}
       </section>
-      <section><div className="sbw-context-section-head"><h3>Company research</h3><button onClick={navigateCompany}>Open company <ArrowUpRight size={13}/></button></div><button className="sbw-context-explore" onClick={navigateCompany}><CalendarDays size={14}/> SEC filings, investor relations and financial data <ChevronRight size={14}/></button></section>
+      <section><div className="sbw-context-section-head"><h3>Company research</h3><button onClick={() => navigateCompany()}>Open company <ArrowUpRight size={13}/></button></div><button className="sbw-context-explore" onClick={() => navigateCompany()}><CalendarDays size={14}/> SEC filings, investor relations and financial data <ChevronRight size={14}/></button></section>
       {selected?.call && <p className="sbw-context-footnote">Transcripts and call recordings are provided from the connected sources. Available filings and slides vary by event.</p>}
     </div>
   </div>
