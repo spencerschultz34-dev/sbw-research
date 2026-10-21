@@ -29,6 +29,7 @@ export default async function handler(req: Request): Promise<Response> {
   if (!target) return json({ error: 'Pass a full https:// address in url.' }, 0, 400)
   try {
     switch (q.get('type')) {
+      case 'discover': return json(await discover(target), 24 * HOUR)
       case 'site': return json(await site(target), 6 * HOUR)
       case 'doc': return json(await doc(target), 24 * HOUR)
       case 'file': return file(target)
@@ -298,6 +299,44 @@ async function microsoft(u: URL): Promise<Omit<IrSite, 'url' | 'host' | 'fetched
     id: `ms-pr-${e.id}`, title: e.title.replace(/ Conference Call$/, '') + ' Release', date: e.date, url: d.url, summary: null,
   })))
   return { platform: 'microsoft', events: sortEvents(events), releases, notes: ['Read from the events list on Microsoft\'s investor pages.', 'Microsoft posts other press releases on news.microsoft.com, which this does not read yet.'] }
+}
+
+/* ---------- generic investor-relations source discovery ---------- */
+
+/** Discover an IR entry point from a verified corporate homepage. The aggregator
+ * does this once per issuer and the edge caches it; the shell stays generic. */
+async function discover(home: URL): Promise<{url:string|null;discoveredFrom:string;confidence:'high'|'low';note?:string}> {
+  const origin = home.origin
+  // Prefer the actual company's home page; avoid fabricated ticker-specific paths.
+  const html = await getText(home)
+  const links = linksIn(html, home.href)
+  const ranked = links.map(link => {
+    let host = ''
+    try { host = new URL(link.url).hostname } catch { return {...link,score:-999} }
+    const text = `${link.text} ${link.url}`.toLowerCase()
+    let score = 0
+    if(/investor[s]? relations|investors|shareholder[s]?|investor center|investor information/.test(text))score+=12
+    if(/quarterly results|financial results|earnings|financial reporting/.test(text))score+=5
+    if(/investor|ir\.|investors\.|shareholder|financial-information/.test(host))score+=5
+    if(/\/investor|\/shareholder|\/financials/.test(link.url.toLowerCase()))score+=3
+    if(/linkedin|facebook|privacy|career|contact|support|login|product|service|investor faq/.test(text))score-=12
+    if(host === home.hostname || host.endsWith('.'+home.hostname.replace(/^www\./,'')))score+=2
+    return {...link,score}
+  }).filter(x=>x.score>=8).sort((a,b)=>b.score-a.score)
+  // Check the likely top candidates only; never crawl an entire company website.
+  for(const candidate of ranked.slice(0,3)){
+    const url=safeUrl(candidate.url)
+    if(!url)continue
+    try {
+      const response=await polite(url)
+      if(response.ok && (response.headers.get('content-type')||'').includes('html')) {
+        response.body?.cancel().catch(()=>{})
+        return {url:response.url||url.href,discoveredFrom:origin,confidence:'high'}
+      }
+      response.body?.cancel().catch(()=>{})
+    }catch{/* try another IR candidate */}
+  }
+  return {url:null,discoveredFrom:origin,confidence:'low',note:'No verified investor relations entry point was found on the company website.'}
 }
 
 /* ---------- reader 3: any IR page ---------- */
