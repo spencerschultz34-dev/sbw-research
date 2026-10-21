@@ -19,7 +19,7 @@ export function EventCompanyContext({ companyId, selectedEventId }: { companyId:
   const past = events.filter(e => e.status !== 'upcoming')
   const latest = past[0]
   const selected = events.find(e => e.id === selectedEventId)
-  const navigateCompany = () => { store.closePanel(); nav(`/company/${companyId}`) }
+  const navigateCompany = (tab = '') => { store.closePanel(); nav(`/company/${companyId}${tab ? `/${tab}` : ''}`) }
   const open = (e: CompanyEvent, tab: 'overview' | 'transcript' | 'report' | 'slides' = 'overview') => store.openEvent(e.id, tab)
   const stats = (ev: CompanyEvent) => {
     if (!ev.metrics?.length) return null
@@ -47,7 +47,7 @@ export function EventCompanyContext({ companyId, selectedEventId }: { companyId:
     {e.call && !compact && <button className="sbw-context-audio" onClick={()=>{open(e,'transcript');if(e.hasAudio)player.play(e.id)}}><Headphones size={13}/> {e.hasAudio?'Listen and read transcript':'Read transcript'} <ArrowUpRight size={13}/></button>}
   </article>
   return <div className="sbw-company-context" aria-label={`${company.name} research overview`}>
-    <div className="sbw-context-head"><Logo id={companyId} size={27}/><button className="sbw-context-company-name" onClick={navigateCompany}>{company.name}</button><span className="sbw-context-ticker">{company.ticker}</span><span className="grow"/><FollowButton id={companyId} small/></div>
+    <div className="sbw-context-head"><Logo id={companyId} size={27}/><button className="sbw-context-company-name" onClick={() => navigateCompany()}>{company.name}</button><span className="sbw-context-ticker">{company.ticker}</span><span className="grow"/><FollowButton id={companyId} small/></div>
     <nav className="sbw-context-tabs" aria-label="Company tabs"><button className="on" onClick={navigateCompany}>Overview</button><button onClick={navigateCompany}>Events</button><button onClick={navigateCompany}>Documents</button></nav>
     <div className="sbw-context-scroll">
       {future.length>0 && <section><h3>Upcoming event</h3>{eventCard(future[0])}</section>}
