@@ -860,3 +860,11 @@ button.sbw-overview-event:hover{border-color:var(--line-strong);background:var(-
 .app.mode-dark .ep-scroll{scrollbar-color:#353839 transparent}
 :where(.app) .sbw-event-row:focus-visible,:where(.app) .sbw-company-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:950px){.sbw-overview-event-quick button,.sbw-overview-event-quick a{font-size:11px}}
+
+.sbw-doc-directory{max-width:1250px;margin:0 auto;padding:22px 24px 48px}
+.sbw-doc-page-head{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:15px;gap:12px}
+.sbw-doc-page-head h2{font-size:18px;font-weight:670}
+.sbw-doc-directory .filter-row{display:flex;flex-wrap:wrap;gap:6px}
+.sbw-doc-directory .data-table tr:hover{background:var(--hover)}
+.sbw-doc-directory .table-wrap{border:1px solid var(--line);border-radius:7px;overflow:auto}
+@media(max-width:760px){.sbw-doc-directory{padding:16px 12px 40px}.sbw-doc-page-head{flex-direction:column}}
