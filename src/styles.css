@@ -829,3 +829,42 @@ svg .axis { fill: var(--muted); font: 9px var(--ui); }
 
 .sbw-card-event-action { display:inline-flex;align-items:center;gap:4px;color:var(--accent);font-weight:600;font-size:11.5px;margin:7px 0 4px;text-align:left;cursor:pointer!important; }
 .sbw-card-event-action:hover { text-decoration:underline;text-underline-offset:3px; }
+
+/* Deep company overview and earnings event UX: compact data-forward Quartr-inspired panels */
+.sbw-co-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 12px}
+.sbw-co-section-title h3{font-size:14px;line-height:1.3;font-weight:680;color:var(--text)}
+.sbw-overview-event{display:flex;flex-direction:column;width:100%;padding:13px 14px;gap:8px;border:1px solid var(--line);border-radius:8px;text-align:left;color:var(--text);background:var(--card)}
+button.sbw-overview-event{cursor:pointer}
+button.sbw-overview-event:hover{border-color:var(--line-strong);background:var(--hover)}
+.sbw-overview-event-heading{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.sbw-overview-event-heading strong{font-size:14px}
+.sbw-overview-metrics{padding-top:8px}
+.sbw-overview-event .consensus{margin:0}
+.sbw-overview-event .num-table{font-size:11.5px}
+.sbw-overview-action{display:inline-flex;align-items:center;gap:3px;color:var(--accent);font-size:11px;font-weight:650;align-self:flex-end}
+.sbw-event-card-main{display:flex;flex-direction:column;align-items:stretch;width:100%;gap:8px;text-align:left;cursor:pointer}
+.sbw-event-card-main:hover>strong{color:var(--gold)}
+.sbw-event-card-main .consensus{margin-top:5px}
+.sbw-event-headline{font-size:12.5px;line-height:1.55;color:var(--text);background:var(--inset);padding:9px 10px;border-radius:6px}
+.sbw-overview-event-quick{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:1px solid var(--line);padding-top:10px;margin-top:3px}
+.sbw-overview-event-quick button,.sbw-overview-event-quick a{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:580;padding:5px 7px;border-radius:5px;color:var(--text-2);background:var(--inset);cursor:pointer}
+.sbw-overview-event-quick button:hover,.sbw-overview-event-quick a:hover{color:var(--text);background:var(--hover)}
+.app.mode-dark .company-head{background:#101113;border-bottom:1px solid #292c2e}
+.app.mode-dark .company .tabs{background:#101113;border-bottom:1px solid #292c2e}
+.app.mode-dark .company .tabs .tab{min-height:40px}
+.app.mode-dark .company .tabs .tab:hover{color:#fff}
+.app.mode-dark .co-overview .card{border:1px solid #292c2e}
+.app.mode-dark .ep-head{background:#111214;border-bottom:1px solid #292c2e}
+.app.mode-dark .ep-tabs{background:#111214}
+.app.mode-dark .summary h1{font-weight:650;letter-spacing:-.015em}
+.app.mode-dark .ep-scroll{scrollbar-color:#353839 transparent}
+:where(.app) .sbw-event-row:focus-visible,:where(.app) .sbw-company-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:950px){.sbw-overview-event-quick button,.sbw-overview-event-quick a{font-size:11px}}
+
+.sbw-doc-directory{max-width:1250px;margin:0 auto;padding:22px 24px 48px}
+.sbw-doc-page-head{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:15px;gap:12px}
+.sbw-doc-page-head h2{font-size:18px;font-weight:670}
+.sbw-doc-directory .filter-row{display:flex;flex-wrap:wrap;gap:6px}
+.sbw-doc-directory .data-table tr:hover{background:var(--hover)}
+.sbw-doc-directory .table-wrap{border:1px solid var(--line);border-radius:7px;overflow:auto}
+@media(max-width:760px){.sbw-doc-directory{padding:16px 12px 40px}.sbw-doc-page-head{flex-direction:column}}
