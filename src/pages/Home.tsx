@@ -100,12 +100,13 @@ export function Home() {
             <div className="sec-head"><h2>Latest events</h2><button className="text-btn" onClick={() => nav('/calendar')}>Go to calendar<ChevronRight size={14} /></button></div>
             <div className="grid-2">
               {latest.map((e) => (
-                <div key={e.id} className="card ev-card clickable" onClick={() => store.openEvent(e.id)}>
+                <div key={e.id} className="card ev-card clickable" onClick={() => { nav(`/company/${e.companyId}`); store.closePanel() }}>
                   <div className="ev-card-head">
                     <Logo id={e.companyId} size={34} />
                     <div className="ev-card-id"><button className="sbw-company-link" onClick={(event) => { event.stopPropagation(); nav(`/company/${e.companyId}`); store.closePanel() }}>{companyById(e.companyId).name}</button><small>{e.title} - {eventWhen(e.date)}</small></div>
                     <ContentChips ev={e} />
                   </div>
+                  <button className="sbw-card-event-action" onClick={(click) => { click.stopPropagation(); store.openEvent(e.id) }}>Open {e.title} event <ChevronRight size={13} /></button>
                   {e.status === 'live' ? <div className="inset live-inset"><span className="live-badge"><i />LIVE</span>Call in progress. Listen live and follow the transcript.</div> : <ConsensusOrNote e={e} />}
                 </div>
               ))}
@@ -113,12 +114,13 @@ export function Home() {
             <div className="sec-head"><h2>Upcoming events</h2><button className="text-btn" onClick={() => nav('/calendar')}>Go to calendar<ChevronRight size={14} /></button></div>
             <div className="grid-3">
               {upcoming.map((e) => (
-                <div key={e.id} className="card up-card clickable" onClick={() => store.openEvent(e.id)}>
+                <div key={e.id} className="card up-card clickable" onClick={() => { nav(`/company/${e.companyId}`); store.closePanel() }}>
                   <div className="ev-card-head">
                     <Logo id={e.companyId} size={34} />
                     <div className="ev-card-id"><button className="sbw-company-link" onClick={(event) => { event.stopPropagation(); nav(`/company/${e.companyId}`); store.closePanel() }}>{companyById(e.companyId).name}</button><small><span className="trunc">{e.title}</span> - {eventWhen(e.date)}</small></div>
                   </div>
                   <TimingChips ev={e} h12={store.prefs.timeFormat === '12'} />
+                  <button className="sbw-card-event-action" onClick={(click) => { click.stopPropagation(); store.openEvent(e.id) }}>View event <ChevronRight size={13} /></button>
                 </div>
               ))}
             </div>
