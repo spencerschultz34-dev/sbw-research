@@ -3,6 +3,7 @@ import { useAuth } from './auth'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { EVENTS, eventById, ensureCompanies, ensureTranscript, getVersion, subscribe, TODAY } from './data'
 import { DEFAULT_TICKERS, idFor } from './data/companies'
+import { UNIVERSE_IDS } from './data/universe'
 import { audioUrl } from './sec'
 import type { Answer } from './chatEngine'
 
@@ -75,6 +76,7 @@ const DEFAULT_STATE: AppState = {
   dataVersion: 2,
   follows: DEFAULT_IDS,
   watchlists: [
+    { id: 'wl-universe', name: 'SBW Coverage Universe', companyIds: UNIVERSE_IDS },
     { id: 'wl-sbw', name: 'SBW WL', companyIds: DEFAULT_IDS },
     { id: 'wl-staples', name: 'Consumer staples', companyIds: ['ko', 'pep', 'cost'] },
   ],
@@ -109,7 +111,14 @@ const DEFAULT_STATE: AppState = {
 const KEY = 'sbw-research-state-v1'
 /** State saved before the switch to real data refers to sample companies: keep the person's settings, drop the rest. */
 function migrate(saved: Partial<AppState>): AppState {
-  if (saved.dataVersion === DEFAULT_STATE.dataVersion) return { ...DEFAULT_STATE, ...saved }
+  if (saved.dataVersion === DEFAULT_STATE.dataVersion) {
+    // Introduce the selected company universe without changing user follows,
+    // custom watchlists, saved research, or any other existing preferences.
+    const watchlists=saved.watchlists??DEFAULT_STATE.watchlists
+    const hasUniverse=watchlists.some(w=>w.id==='wl-universe')
+    return { ...DEFAULT_STATE, ...saved,
+      watchlists:hasUniverse?watchlists:[DEFAULT_STATE.watchlists[0],...watchlists] }
+  }
   const keep = (k: 'prefs' | 'labels' | 'prompts') => saved[k] ?? DEFAULT_STATE[k]
   return { ...DEFAULT_STATE, prefs: { ...DEFAULT_STATE.prefs, ...keep('prefs') as Prefs }, labels: keep('labels') as string[], prompts: keep('prompts') as Prompt[] }
 }
@@ -153,7 +162,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const toastTimer = useRef<number>()
   // Live data arrives after the first render; this re-renders every screen when it does.
   const dataVersion = useSyncExternalStore(subscribe, getVersion)
-  const tracked = useMemo(() => [...new Set([...state.follows, ...state.watchlists.flatMap((w) => w.companyIds)])], [state.follows, state.watchlists])
+  // The 100-name directory is static at startup. Fetch live data only for
+  // followed companies; visiting another profile loads that issuer on demand.
+  // This avoids hundreds of SEC/Finnhub requests on every page load.
+  const tracked = useMemo(() => [...new Set(state.follows)].slice(0, 25), [state.follows])
   useEffect(() => { void ensureCompanies(tracked) }, [tracked])
 
   useEffect(() => {
