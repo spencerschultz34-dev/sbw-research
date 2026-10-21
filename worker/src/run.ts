@@ -32,6 +32,7 @@ const { values: args } = parseArgs({
 const DRY = args['dry-run']!
 const MAX_ATTEMPTS = 6 // the schedule runs every 3 hours, so a call is retried for about 18 hours
 const MIN_SECONDS = 10 * 60 // anything shorter is a holding slate or a teaser, not the call
+const dryOk: string[] = [], dryFailed: string[] = []
 const log = (m: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}`)
 
 /** Fiscal year and quarter of a call held on `date`, for a company whose fiscal year ends on MMDD. */
@@ -92,7 +93,7 @@ async function process1(job: Job, attempts: number) {
     await record(input, found.headers, mp3, DRY ? 60 : 4 * 3600, log)
     const secs = Math.round(await duration(mp3))
     log(`${tag}: recorded ${Math.floor(secs / 60)} min ${secs % 60} s, ${((await readFile(mp3)).length / 1e6).toFixed(1)} MB`)
-    if (DRY) return
+    if (DRY) return void dryOk.push(tag)
     if (secs < MIN_SECONDS) throw new Error(`The recording is only ${Math.round(secs / 60)} minutes long, so it is probably a holding slate, not the call`)
 
     const utts = await transcribe(mp3, log)
@@ -106,7 +107,7 @@ async function process1(job: Job, attempts: number) {
     const msg = (e as Error).message
     log(`${tag}: failed: ${msg}`)
     if (!DRY && storeReady()) await save({ ...base, status: 'failed', error: msg.slice(0, 1000), attempts: attempts + 1 }).catch((x) => log(`Could not save the failure: ${x.message}`))
-    if (DRY) process.exitCode = 1
+    if (DRY) dryFailed.push(tag)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -143,5 +144,13 @@ async function main() {
   }
 }
 
+/** A dry run passes when at least one call was found and recorded; old replays do get taken down. */
+function dryVerdict() {
+  if (!DRY) return
+  log(`Dry run: recorded ${dryOk.join(', ') || 'nothing'}; no stream for ${dryFailed.join(', ') || 'none'}`)
+  for (const t of dryFailed) console.log(`::warning::No webcast stream found for ${t}`)
+  if (!dryOk.length) process.exitCode = 1
+}
+
 // Exit explicitly: a browser left open by a timed-out search would otherwise keep the process alive.
-main().then(() => process.exit(process.exitCode ?? 0), (e) => { console.error(e.message); process.exit(1) })
+main().then(dryVerdict).then(() => process.exit(process.exitCode ?? 0), (e) => { console.error(e.message); process.exit(1) })
