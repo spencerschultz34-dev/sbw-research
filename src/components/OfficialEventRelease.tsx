@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FileText, ExternalLink } from 'lucide-react'
-import { discoverIrUrl, discoverIrSite, loadIrSite, useIrSource, type IrDoc } from '../ir'
+import { discoverIrUrl, loadIrSite, useIrSource, type IrDoc } from '../ir'
 import { companyById } from '../data/companies'
 import type { CompanyEvent } from '../data/types'
 import { OriginalDocument } from './OriginalDocument'
@@ -37,7 +37,7 @@ export function useOfficialEventDocuments(event:CompanyEvent) {
     }).catch(e=>{if(alive)setError(e instanceof Error?e.message:'Investor relations source unavailable')}).finally(()=>{if(alive)setPending(false)})
     return()=>{alive=false}
   },[configuredUrl,website,event.id,event.date,event.call?.year,event.call?.quarter])
-  return {docs,pending:pending||discoveryPending,error}
+  return {docs,pending,error}
 }
 export function OfficialEventRelease({event,fallback}:{event:CompanyEvent;fallback:React.ReactNode}) {
   const {docs,pending,error}=useOfficialEventDocuments(event)
