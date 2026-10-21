@@ -46,3 +46,12 @@ export function OfficialEventRelease({event,fallback}:{event:CompanyEvent;fallba
   if(pending)return <div className="ep-scroll"><div className="empty">Locating the company’s original earnings release…</div></div>
   return <div className="sbw-official-report">{error&&<div className="sbw-report-fallback">Company investor-relations release unavailable. Showing the SEC filing.</div>}{fallback}</div>
 }
+
+/** If no synchronized transcript provider exists, retain the exact company PDF. */
+export function OfficialEventTranscript({event}:{event:CompanyEvent}) {
+  const {docs,pending,error}=useOfficialEventDocuments(event)
+  const transcript=docs.find(d=>d.kind==='transcript'&&d.format==='pdf')??docs.find(d=>d.kind==='transcript')
+  if(transcript)return <OriginalDocument url={transcript.url} title={transcript.title||event.title+' transcript'} format={transcript.format} kind="press-release"/>
+  if(pending)return <div className="ep-scroll"><div className="empty">Finding the company’s original transcript…</div></div>
+  return <div className="ep-scroll"><div className="empty">No transcript is indexed for this event. {error}</div></div>
+}
