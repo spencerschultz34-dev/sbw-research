@@ -13,6 +13,8 @@ export interface Company {
   ticker: string
   country: string
   industry: string
+  sector?: string
+  description?: string
   marketCap: string
   color: string
   monogram: string

@@ -4,6 +4,7 @@ import { AuthGate } from './auth'
 import { Shell } from './components/Shell'
 import { Home } from './pages/Home'
 import { CompanyPage } from './pages/Company'
+import { CompaniesPage } from './pages/Companies'
 import { CalendarPage } from './pages/Calendar'
 import { SearchPage } from './pages/Search'
 import { ChatPage } from './pages/Chat'
@@ -28,6 +29,7 @@ export function App() {
           <Routes>
             <Route element={<Shell />}>
               <Route index element={<Home />} />
+              <Route path="companies" element={<CompaniesPage />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="search" element={<SearchPage />} />
               <Route path="chat" element={<ChatPage />} />

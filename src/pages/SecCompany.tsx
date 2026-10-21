@@ -50,7 +50,7 @@ export function SecCompanyPage(props: { cik?: string; base?: string; companyId?:
   if (error) return <div className="page"><div className="page-head"><span className="page-title">SEC company</span></div><div className="page-scroll"><Empty>{error}</Empty></div></div>
   if (!data) return <div className="page"><div className="page-head"><span className="page-title">Loading SEC data…</span></div></div>
 
-  const ticker = data.tickers[0]
+  const ticker = props.companyId ? companyById(props.companyId).ticker : data.tickers[0]
   const full = tab === 'earnings' || tab === 'events' || tab === 'press-releases'
   const cid = props.companyId ?? ticker?.toLowerCase() ?? ''
   return (
@@ -115,10 +115,11 @@ function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }
   const historical = cid ? eventsForCompany(cid).filter(e => e.status !== 'upcoming').sort((a,b)=>b.date.localeCompare(a.date)) : []
   const latestEvent = historical[0]
   const latestCall = historical.find(e => e.call)
+  const companyProfile = companyById(cid)
   const f = d.financials
   const fy = d.fiscalYearEnd ? `${Number(d.fiscalYearEnd.slice(2))} ${MON[Number(d.fiscalYearEnd.slice(0, 2)) - 1]}` : '–'
   const rows: [string, string | null][] = [
-    ['Industry', d.industry], ['Fiscal year ends', fy], ['Headquarters', d.city && d.city.split(', ').map((p, i) => (i === 0 ? titleCase(p) : p)).join(', ')], ['Incorporated in', d.state],
+    ['Sector', companyProfile.sector ?? null], ['Industry', d.industry || companyProfile.industry], ['Fiscal year ends', fy], ['Headquarters', d.city && d.city.split(', ').map((p, i) => (i === 0 ? titleCase(p) : p)).join(', ')], ['Incorporated in', d.state],
     ['Filer category', d.category], ['CIK', String(d.cik)],
   ]
   return (
@@ -151,6 +152,7 @@ function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }
           </div>
         ) : (d.filings.find(isEarnings) ? <NavLink to={`${base}/earnings`} className="card pad clickable block"><strong>Latest earnings release</strong><small className="muted block">Filed {day(d.filings.find(isEarnings)!.filed)} · View SEC release and supporting documents</small></NavLink> : <div className="card pad muted small">No prior earnings events indexed.</div>)}
         <h3 className="sec-title">Profile</h3>
+        {companyProfile.description && <div className="card pad sbw-company-about"><p>{companyProfile.description}</p></div>}
         <div className="card list-card">
           {rows.filter(([, v]) => v).map(([k, v]) => <div key={k} className="list-row"><span className="muted">{k}</span><span className="right">{v}</span></div>)}
           {d.website && <div className="list-row"><span className="muted">Website</span><a className="accent" href={d.website.startsWith('http') ? d.website : `https://${d.website}`} target="_blank" rel="noreferrer">{d.website.replace(/^https?:\/\//, '')}</a></div>}

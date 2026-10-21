@@ -93,7 +93,7 @@ const near = (a: string, b: string, days: number) => Math.abs(Date.parse(a) - Da
 async function hydrate(id: string) {
   const ticker = id.toUpperCase()
   const list = await loadTickers()
-  const row = list.find((t) => t[1] === ticker)
+  const row = list.find((t) => idFor(t[1]) === idFor(ticker))
   if (!row) return // not listed with the SEC
   const [cik, , name, exchange] = row
   upsertCompany(id, { name: titleCase(name), cik, exchange: exchange || undefined })
