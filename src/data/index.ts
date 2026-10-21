@@ -266,10 +266,107 @@ export function ensureTranscript(eventId: string): Promise<void> {
           const isAnalyst = /analyst/i.test(s.title)
           return { name: isOperator && /^speaker [a-z0-9]+$/i.test(s.name) ? 'Operator' : s.name, role: s.title, isOperator, isAnalyst }
         })
+        // MSFT FY26 Q4 stored recording uses diarization letters that are recycled
+        // across participants. Restore labels per SOURCE SPEAKING TURN, not per voice.
+        // Names are grounded in the call's audible introductions. Other calls retain
+        // provider metadata until their participants can be identified reliably.
+        const msftQ4 = symbol.toUpperCase() === 'MSFT' && year === 2026 && quarter === 4 && t.source === 'SBW recording'
+        const identifiedTurns: Record<string, { name: string; role: string }> = {
+          p1:{name:'Operator',role:'Conference operator'},
+          p2:{name:'Jonathan Neilson',role:'Vice President, Investor Relations · Microsoft'},
+          p3:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p4:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p5:{name:'Jonathan Neilson',role:'Investor Relations · Microsoft'},
+          p6:{name:'Operator',role:'Conference operator'},
+          p7:{name:'Karl Keirstead',role:'Analyst · UBS'},
+          p8:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p9:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p10:{name:'Karl Keirstead',role:'Analyst · UBS'},
+          p11:{name:'Jonathan Neilson',role:'Investor Relations · Microsoft'},
+          p12:{name:'Operator',role:'Conference operator'},
+          p13:{name:'Brent Thill',role:'Analyst · Jefferies'},
+          p14:{name:'Brent Thill',role:'Analyst · Jefferies'},
+          p15:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p16:{name:'Jonathan Neilson',role:'Investor Relations · Microsoft'},
+          p17:{name:'Operator',role:'Conference operator'},
+          p18:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p19:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p20:{name:'Mark Moerdler',role:'Analyst · Bernstein'},
+          p21:{name:'Jonathan Neilson',role:'Investor Relations · Microsoft'},
+          p22:{name:'Operator',role:'Conference operator'},
+          p23:{name:'Adam Wood',role:'Analyst · Morgan Stanley'},
+          p24:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p25:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p26:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p27:{name:'Adam Wood',role:'Analyst · Morgan Stanley'},
+          p28:{name:'Jonathan Neilson',role:'Investor Relations · Microsoft'},
+          p29:{name:'Operator',role:'Conference operator'},
+          p30:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p31:{name:'Jonathan Neilson',role:'Investor Relations · Microsoft'},
+          p32:{name:'Operator',role:'Conference operator'},
+          p33:{name:'Gabriela Borges',role:'Analyst · Goldman Sachs'},
+          p34:{name:'Gabriela Borges',role:'Analyst · Goldman Sachs'},
+          p35:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p36:{name:'Jonathan Neilson',role:'Investor Relations · Microsoft'},
+          p37:{name:'Operator',role:'Conference operator'}
+        }
+        if (msftQ4) speakers.length = 0 // never show unused raw voice labels in the speaker filter
+        const identifiedKeys = new Map<string, number>()
         let chapter = 0
-        const paragraphs = t.paragraphs.map((p, i) => {
+        const paragraphs = t.paragraphs.flatMap((p, i) => {
           if (p.id === t.qnaStart) chapter = 1
-          return { id: p.id, speaker: Math.max(0, speakerKeys.indexOf(p.speaker)), start: p.start ?? i, text: p.sentences.map((s) => s.text).join(' '), chapter, sents: p.sentences }
+          const identified = msftQ4 ? identifiedTurns[p.id] : undefined
+          let speakerIndex = Math.max(0, speakerKeys.indexOf(p.speaker))
+          if (identified) {
+            const key = identified.name
+            if (!identifiedKeys.has(key)) {
+              identifiedKeys.set(key, speakers.length)
+              speakers.push({ name: identified.name, role: identified.role, isOperator: key === 'Operator', isAnalyst: /Analyst/.test(identified.role) })
+            }
+            speakerIndex = identifiedKeys.get(key)!
+          }
+          // Microsoft source transcript confirms that two diarized turns contain
+          // the operator's handoff followed by the analyst's actual question.
+          // Split on a verified spoken boundary and preserve word timestamps.
+          if (msftQ4 && (p.id === 'p17' || p.id === 'p29')) {
+            const all = p.sentences
+            const full = all.map(x=>x.text)
+            const marker = p.id === 'p17'
+              ? /thank you very much for taking my question/i
+              : /great[,.]? thank you so much for taking my question/i
+            const splitSentence = full.findIndex(text=>marker.test(text))
+            let operatorSentences = all.slice(0, splitSentence < 0 ? 1 : splitSentence)
+            let analystSentences = all.slice(splitSentence < 0 ? 1 : splitSentence)
+            // Sometimes STT combines the operator handoff and analyst greeting
+            // within one sentence; separate only at the exact greeting words.
+            if (splitSentence <= 0 && all.length) {
+              const both=all[0]
+              const phrase=p.id==='p17'?/thank you very much for taking my question/i:/great[,.]? thank you so much for taking my question/i
+              const at=both.text.search(phrase)
+              if(at>0) {
+                operatorSentences=[{...both,text:both.text.slice(0,at).trim()}]
+                analystSentences=[{...both,text:both.text.slice(at).trim()},...all.slice(1)]
+              }
+            }
+            if(operatorSentences.length && analystSentences.length){
+              const analyst = p.id==='p17'
+                ? {name:'Mark Moerdler',role:'Analyst · Bernstein Research'}
+                : {name:'Brad Zelnick',role:'Analyst · Deutsche Bank'}
+              if(!identifiedKeys.has(analyst.name)) {
+                identifiedKeys.set(analyst.name,speakers.length)
+                speakers.push({...analyst,isOperator:false,isAnalyst:true})
+              }
+              const turn = (id:string,index:number,part:typeof all,start:number)=>({
+                id,speaker:index,start,text:part.map(x=>x.text).join(' '),chapter,sents:part
+              })
+              return [
+                turn(p.id,speakerIndex,operatorSentences,p.start??i),
+                turn(p.id+'-analyst',identifiedKeys.get(analyst.name)!,analystSentences,
+                  analystSentences[0]?.t ?? p.start ?? i)
+              ]
+            }
+          }
+          return [{ id: p.id, speaker: speakerIndex, start: p.start ?? i, text: p.sentences.map((s) => s.text).join(' '), chapter, sents: p.sentences }]
         })
         const qna = paragraphs.find((p) => p.id === t.qnaStart)
         const tr: Transcript = {

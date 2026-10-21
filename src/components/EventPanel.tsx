@@ -15,6 +15,7 @@ import { PagedSecRelease } from './PagedSecRelease'
 import { SourceSlidesView } from './SourceSlidesView'
 import { OfficialEventRelease, OfficialEventTranscript } from './OfficialEventRelease'
 import { GeneratedEventOverview } from './GeneratedEventOverview'
+import { downloadTranscriptPdf } from './exportTranscriptPdf'
 
 declare const __ARTIFACT__: boolean
 
@@ -256,6 +257,37 @@ function sentences(text: string) {
   return text.match(/[^.!?]+[.!?]+["”]?\s*|[^.!?]+$/g) ?? [text]
 }
 
+/** One card per short spoken passage (like the Quartr transcript screenshot).
+ * Never modify the spoken words; preserve original paragraph ids for citations.
+ * Sentence timings remain attached to the correct sub-card. */
+/** Keep each coherent idea together. Split at natural rhetorical transitions, or
+ * at sentence boundaries only as a readability fallback for unusually long turns.
+ * The spoken words and original sentence timestamps are never rewritten. */
+function transcriptCards(paragraph: Paragraph, nextStart: number): Paragraph[] {
+  const list = paragraph.sents?.length
+    ? paragraph.sents.map(x=>({...x,text:x.text.trim()}))
+    : sentences(paragraph.text).map(text=>({text:text.trim(),t:null as number|null}))
+  const thoughtStart=/^(?:first(?:ly)?|second(?:ly)?|third(?:ly)?|next|finally|turning (?:to|back)|moving (?:to|on)|on the (?:other|second|product|commercial|consumer)|as for|in terms of|with regard to|another (?:point|thing|area|way)|let me (?:start|talk|shift)|the (?:second|third|next) (?:thing|piece|point)|now,? (?:on|if|turning|let's)|to your (?:first|second|question)|from a (?:financial|product|customer)|so,? (?:first|second|third))\b/i
+  const cards:Paragraph[]=[]
+  let buffer:typeof list=[], chars=0
+  const push=()=>{
+    if(!buffer.length)return
+    const first=buffer[0],index=cards.length
+    cards.push({...paragraph,id:index?paragraph.id+'--'+index:paragraph.id,
+      start:first.t??paragraph.start,text:buffer.map(x=>x.text).join(' '),sents:buffer})
+    buffer=[];chars=0
+  }
+  list.forEach((original,i)=>{
+    const sentence={...original,t:original.t??(paragraph.start+i*Math.max(0,nextStart-paragraph.start)/Math.max(1,list.length))}
+    const isNewThought=thoughtStart.test(sentence.text)
+    const last=buffer[buffer.length-1]
+    if(buffer.length && ((isNewThought&&chars>=160) || (chars>1200&&/[.!?]$/.test(last.text.trim()))))push()
+    buffer.push(sentence);chars+=sentence.text.length+1
+  })
+  push()
+  return cards.length?cards:[paragraph]
+}
+
 function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string; nonce?: number }) {
   const t = ev.transcript!
   const timed = t.timed !== false
@@ -264,12 +296,15 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
   const [sync, setSync] = useState(true)
   const [find, setFind] = useState<string | null>(null)
   const [hit, setHit] = useState(0)
+  const [speakerFilter, setSpeakerFilter] = useState<number | null>(null)
+  const [qnaOnly, setQnaOnly] = useState(false)
   const [sel, setSel] = useState<{ x: number; y: number; text: string; pid: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isPlaying = player.eventId === ev.id
   const live = ev.status === 'live'
-  const visible = live ? t.paragraphs.filter((p) => p.start <= player.liveEdge) : t.paragraphs
+  const visible = t.paragraphs.filter(p => (!live || p.start <= player.liveEdge) && (speakerFilter === null || p.speaker === speakerFilter) && (!qnaOnly || (!!t.qnaStart && p.start >= t.qnaStart)))
   const end = live ? player.liveEdge : ev.durationSec
+  const displayTurns = visible.flatMap((paragraph, i) => transcriptCards(paragraph, visible[i + 1]?.start ?? end))
 
   const curPid = isPlaying ? [...visible].reverse().find((p) => p.start <= player.pos)?.id : undefined
 
@@ -317,12 +352,9 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
   }
 
   const download = () => {
-    if (__ARTIFACT__) { store.notify('Downloads work in the hosted version of the app'); return }
-    const txt = t.paragraphs.map((p) => `${t.speakers[p.speaker].name} (${fmtStamp(p.start)})\n${p.text}`).join('\n\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }))
-    a.download = `${companyById(ev.companyId).ticker}-${ev.title.replace(/\s+/g, '-')}-transcript.txt`
-    a.click()
+    if (__ARTIFACT__) { store.notify('PDF exports work in the hosted version of the app'); return }
+    try { downloadTranscriptPdf(ev, t) }
+    catch { store.notify('Could not prepare the PDF export. Please try again.') }
   }
 
   const jump = (sec: number) => {
@@ -335,7 +367,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
     <div className="doc-view">
       <div className="doc-toolbar">
         <button className="ghost-icon" title="Copy transcript" onClick={copyAll}><Copy size={15} /></button>
-        <button className="ghost-icon" title="Download transcript" onClick={download}><Download size={15} /></button>
+        <button className="ghost-icon" title="Download SBW-branded transcript PDF" onClick={download}><Download size={15} /></button>
         <button className={`ghost-icon${sync ? ' on' : ''}`} title={sync ? 'Following audio' : 'Follow audio'} onClick={() => setSync(!sync)}><RefreshCw size={15} /></button>
         <span className="tb-sep" />
         <Menu width={260} trigger={(_o, tg) => <button className="text-btn" onClick={tg}>Chapters<ChevronDown size={14} /></button>}>
@@ -343,7 +375,13 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
             <button key={ch.title} className="menu-item" onClick={() => { jump(ch.start); close() }}><span>{ch.title}</span><span className="muted mono">{fmtStamp(ch.start)}</span></button>
           ))}
         </Menu>
-        <button className="text-btn chip-btn" disabled={!t.qnaStart && t.qnaStart !== 0} title={t.qnaStart || t.qnaStart === 0 ? "Jump to questions and answers" : "Q&A start not identified"} onClick={() => jump(t.qnaStart)}>Q&amp;A</button>
+        <button className={`text-btn chip-btn sbw-toolbar-filter${qnaOnly ? ' selected' : ''}`} disabled={!t.qnaStart} title={t.qnaStart ? 'Filter to the questions and answers' : 'Q&A start not identified'} onClick={() => { setQnaOnly(!qnaOnly); setHit(0) }}>Q&amp;A only</button>
+        <Menu width={260} trigger={(_o, toggle) => <button className={`text-btn chip-btn sbw-toolbar-filter${speakerFilter !== null ? ' selected' : ''}`} onClick={toggle}>Speakers <ChevronDown size={13}/></button>}>
+          {close => <>
+            <button className={`menu-item${speakerFilter === null ? ' cur' : ''}`} onClick={() => { setSpeakerFilter(null); close() }}>All speakers</button>
+            {t.speakers.map((sp, i) => <button key={i} className={`menu-item${speakerFilter === i ? ' cur' : ''}`} onClick={() => { setSpeakerFilter(i); close() }}>{sp.name}{sp.role && <small className="muted">{sp.role}</small>}</button>)}
+          </>}
+        </Menu>
         <span className="grow" />
         {find === null
           ? <button className="text-btn" onClick={() => setFind('')}><Search size={14} />Find</button>
@@ -360,12 +398,15 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
           )}
       </div>
       <div className="ep-scroll transcript" ref={scrollRef} onMouseUp={onMouseUp}>
-        {visible.map((p) => {
+        {visible.length === 0 && <div className="sbw-transcript-empty">No speaker turns match these filters. <button className="text-btn" onClick={() => { setSpeakerFilter(null); setQnaOnly(false) }}>Show complete transcript</button></div>}
+        {displayTurns.map((p, cardIndex) => {
           const sp = t.speakers[p.speaker]
-          const cur = p.id === curPid
-          const hls = savedHere.filter((s) => s.ref === p.id && s.highlight).map((s) => s.highlight!)
-          const isSaved = savedHere.some((s) => s.ref === p.id && !s.highlight)
-          const next = visible[visible.indexOf(p) + 1]?.start ?? end
+          const parent = t.paragraphs.find(item => item.id === p.id || p.id.startsWith(item.id + '--')) ?? p
+          const nextTurn = displayTurns[cardIndex + 1]?.start ?? end
+          const cur = isPlaying && player.pos >= p.start && player.pos < nextTurn
+          const hls = savedHere.filter((s) => s.ref === parent.id && s.highlight).map((s) => s.highlight!)
+          const isSaved = savedHere.some((s) => s.ref === parent.id && !s.highlight)
+          const next = nextTurn
           // Real transcripts carry a start time per sentence; otherwise spread the paragraph evenly.
           const sents = p.sents?.map((x) => x.text + ' ') ?? sentences(p.text)
           const per = (next - p.start) / sents.length
@@ -378,10 +419,10 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
                 {sp.isOperator ? <span className="avatar op"><PhoneGlyph /></span> : <Avatar name={sp.name} size={30} />}
                 <div><b>{sp.name}</b>{sp.role && <small>{sp.role}</small>}</div>
                 <span className="grow" />
-                <button className={`ghost-icon para-save${isSaved ? ' on' : ''}`} title={isSaved ? 'Saved' : 'Save paragraph'} onClick={() => !isSaved && savePara(p)}><Bookmark size={14} fill={isSaved ? 'currentColor' : 'none'} /></button>
+                <button className={`ghost-icon para-save${isSaved ? ' on' : ''}`} title={isSaved ? 'Saved' : 'Save paragraph'} onClick={() => !isSaved && savePara(parent)}><Bookmark size={14} fill={isSaved ? 'currentColor' : 'none'} /></button>
                 {timed && <button className="stamp mono" title="Play from here" onClick={() => ev.hasAudio && player.play(ev.id, p.start)}>{fmtStamp(p.start)}</button>}
               </div>
-              <div data-pid={p.id} className="sbw-transcript-paragraphs">
+              <div data-pid={parent.id} className="sbw-transcript-paragraphs">
                 {groups.map((group, j) => <p key={j} className="sbw-transcript-reading-paragraph">
                   {group.map((i) => (
                     <span key={i} className={`sent${i === curSent ? ' now' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; if (timed && ev.hasAudio) player.play(ev.id, startOf(i)) }}>
