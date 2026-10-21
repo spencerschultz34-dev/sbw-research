@@ -3,7 +3,7 @@ import { FileText, ExternalLink } from 'lucide-react'
 import { loadIrSite, useIrSource, type IrDoc } from '../ir'
 import { companyById } from '../data/companies'
 import type { CompanyEvent } from '../data/types'
-import { PagedSecRelease } from './PagedSecRelease'
+import { OriginalDocument } from './OriginalDocument'
 
 export type OfficialEventDoc = {title:string;url:string;format:string}
 export const matchingEvent = (event:CompanyEvent, date:string|null, title:string) => {
@@ -35,11 +35,8 @@ export function useOfficialEventDocuments(event:CompanyEvent) {
 }
 export function OfficialEventRelease({event,fallback}:{event:CompanyEvent;fallback:React.ReactNode}) {
   const {docs,pending,error}=useOfficialEventDocuments(event)
-  const release=docs.find(d=>d.kind==='press-release'&&d.format==='html')
-  if(release)return <div className="sbw-official-report">
-    <div className="sbw-official-report-bar"><FileText size={13}/><span>Original company earnings release</span><span className="grow"/><a href={release.url} target="_blank" rel="noreferrer">Company source <ExternalLink size={12}/></a></div>
-    <PagedSecRelease key={release.url} url={release.url} title={release.title||event.title} official/>
-  </div>
+  const release=docs.find(d=>d.kind==='press-release'&&d.format==='pdf') ?? docs.find(d=>d.kind==='press-release')
+  if(release)return <OriginalDocument url={release.url} title={release.title||event.title} format={release.format} kind="press-release" />
   if(pending)return <div className="ep-scroll"><div className="empty">Locating the company’s original earnings release…</div></div>
   return <div className="sbw-official-report">{error&&<div className="sbw-report-fallback">Company investor-relations release unavailable. Showing the SEC filing.</div>}{fallback}</div>
 }
