@@ -1022,3 +1022,85 @@ button.sbw-overview-event:hover{border-color:var(--line-strong);background:var(-
 .crumb-sub{font-size:12px}
 @media(max-width:1120px){.home{grid-template-columns:minmax(235px,36%) minmax(0,1fr);gap:15px;padding:10px 13px 40px}.home .grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:780px){.home{display:block}.home .feed-col{margin-bottom:20px}.home .grid-2,.home .grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Screenshot-calibrated layout (Quartr reference captured near 1590x710):
+   sidebar 196px, company context 374px, 10px seam, event workspace 1fr. */
+@media (min-width:1100px) {
+ .app:not(.collapsed) .sidebar{width:196px!important;flex-basis:196px!important}
+ .panels.split:not(.expanded) .main-panel.sbw-context-host{flex:0 0 375px!important;max-width:375px!important}
+ .panels.split:not(.expanded) .side-panel{flex:1 1 0!important}
+}
+.app.mode-dark .sidebar{background:#0e0e0f!important;border-right:1px solid #262729}
+.app.mode-dark .panels{gap:9px}
+.app.mode-dark .panel{background:#141414!important;border:1px solid #27282a;border-radius:6px}
+.app.mode-dark .sbw-company-context{background:#141414}
+.app.mode-dark .sbw-context-head{height:38px;padding:0 11px;border-bottom:1px solid #28292a}
+.app.mode-dark .sbw-context-tabs{height:41px;padding:0 12px;gap:15px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.app.mode-dark .sbw-context-tabs::-webkit-scrollbar{display:none}
+.app.mode-dark .sbw-context-tabs button{font-size:12px;font-weight:500}
+.app.mode-dark .sbw-context-tabs button.on{font-weight:600}
+.app.mode-dark .sbw-context-scroll{padding:20px 12px 30px}
+.app.mode-dark .sbw-context-scroll h3{font-size:14px;font-weight:650}
+.app.mode-dark .sbw-context-scroll section{margin-bottom:27px}
+.app.mode-dark .sbw-context-card{background:#1b1b1c;border-color:#303032;border-radius:7px;padding:12px}
+.app.mode-dark .sbw-context-card-heading b{font-size:13px}
+.app.mode-dark .sbw-context-card-heading small{font-size:11px}
+.app.mode-dark .sbw-context-metrics{border-color:#303032;margin-top:11px}
+.app.mode-dark .sbw-context-metrics th{background:#1b1b1c}
+.app.mode-dark .sbw-context-metrics td{font-size:11px}
+.app.mode-dark .sbw-context-headline{font-size:12px;background:#252527}
+.app.mode-dark .sbw-context-card.is-selected{border-color:#45464a}
+.app.mode-dark .ep-head{height:38px!important;min-height:38px;background:#171718!important;border-bottom:1px solid #2b2c2e;padding:0 12px}
+.app.mode-dark .ep-tabs{height:41px;min-height:41px;background:#171718!important;border-bottom:1px solid #2b2c2e}
+.app.mode-dark .ep-tabs .tab{font-size:12px}
+.app.mode-dark .doc-toolbar{height:40px;flex:none;background:#171718;border-bottom:1px solid #2b2c2e}
+.app.mode-dark .ep-body{background:#171718}
+.app.mode-dark .ep-scroll{background:#171718}
+.app.mode-dark .sbw-msft-reader .summary{max-width:704px;padding:29px 15px 48px}
+.app.mode-dark .sbw-msft-reader .summary h1{font-size:21px;line-height:1.37}
+.app.mode-dark .sbw-msft-reader .summary h2{font-size:16px;margin-top:23px}
+.app.mode-dark .sbw-msft-reader .summary ul{font-size:14px;line-height:1.5;padding-left:25px}
+.app.mode-dark .sbw-msft-reader .transcript{padding-top:12px}
+.app.mode-dark .sbw-msft-reader .transcript .para{max-width:648px;background:#1b1b1c!important;border:1px solid #2f3032;border-radius:8px;padding:13px 13px 15px;margin-bottom:11px}
+.app.mode-dark .sbw-msft-reader .transcript .para-head b{font-size:12px}
+.app.mode-dark .sbw-msft-reader .transcript .para-head small{font-size:11px}
+.app.mode-dark .sbw-transcript-reading-paragraph{font-size:14px;line-height:1.56}
+.app.mode-dark .sbw-transcript-paragraphs{gap:9px}
+.app.mode-dark .sbw-msft-reader .viewer{background:#171718}
+.app.mode-dark .sbw-msft-reader .viewer .thumbs{background:#171718}
+.app.mode-dark .sbw-msft-reader .viewer-main{background:#171718}
+.app.mode-dark .player{border-top:1px solid #2e3135}
+.app.mode-dark .bottom-strip{background:#101113}
+.co-overview{display:grid;grid-template-columns:minmax(320px,400px) minmax(0,1fr);column-gap:28px;align-items:start;padding:18px 12px 44px;max-width:none}
+.co-left{min-width:0}
+.co-right{min-width:0}
+.co-overview .sbw-co-section-title{margin:0 0 11px}
+.co-overview .sbw-co-section-title h3{font-size:14px}
+.co-overview .sbw-overview-event{padding:12px 13px;gap:9px}
+.co-overview .sbw-overview-event-heading strong,.co-overview .sbw-event-card-main strong{font-size:13px}
+.co-overview .sbw-main-overview-section{margin-bottom:26px}
+.co-overview .sbw-main-overview-section>.sec-title{margin:0 0 13px}
+.co-overview .sbw-main-overview-section .seg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:8px}
+.co-overview .seg-card{padding:13px 14px;min-height:155px}
+.co-overview .seg-body{display:flex;gap:12px;align-items:center;justify-content:space-between}
+.co-overview .seg-title{font-size:12px}
+.co-overview .legend{font-size:10px;flex:1;min-width:0}
+.co-overview .legend li{gap:5px}
+.co-overview .seg-card .legend li span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.co-overview .seg-card .legend li b{font-variant-numeric:tabular-nums}
+.sbw-right-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sbw-right-section-heading .sec-title{margin:0 0 13px}
+.sbw-document-carousel{display:flex;overflow-x:auto;gap:8px;padding-bottom:6px;scrollbar-color:#414244 transparent}
+.sbw-document-tile{flex:0 0 218px;background:#1b1b1c;border:1px solid #2c2d2f;border-radius:7px;overflow:hidden;text-decoration:none}
+.sbw-document-tile:hover{border-color:#575b5e}
+.sbw-document-cover{height:136px;background:#e7e9eb;color:#183a55;padding:19px;display:flex;align-items:flex-start;flex-direction:column;gap:6px}
+.sbw-document-cover strong{font-size:20px}
+.sbw-document-cover span{font-size:11px;color:#5e6570}
+.sbw-document-caption{display:flex;flex-direction:column;gap:5px;padding:10px 12px}
+.sbw-document-caption strong{font-size:12px;color:#e8e8e9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbw-document-caption span{font-size:10px;color:#a9aaac}
+.app.mode-dark .company-head{height:46px;min-height:46px;padding:0 12px;border-bottom:1px solid #292a2c}
+.app.mode-dark .company .tabs{height:41px;min-height:41px;background:#141414}
+.app.mode-dark .company .tabs .tab{font-size:12px;font-weight:550}
+@media(max-width:1160px){.co-overview{grid-template-columns:minmax(280px,37%) minmax(0,1fr);gap:14px;padding:15px}}
+@media(max-width:900px){.co-overview{display:block}.co-overview .co-left{margin-bottom:22px}}
