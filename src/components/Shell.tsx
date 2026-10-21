@@ -14,12 +14,10 @@ import { eventWhen } from '../format'
 import { matchTickers, titleCase, useTickers } from '../sec'
 
 export function Wordmark() {
-  return (
-    <span className="wordmark" aria-label="SBW Research">
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M5 12.5 L8 8.5 L10.5 10.5 L13.5 5.5" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-      <b>SBW</b><span>RESEARCH</span>
-    </span>
-  )
+  return <span className="wordmark" aria-label="Schaper, Benz & Wise Research">
+    <span className="sbw-tree" aria-hidden="true">S</span>
+    <b>SBW</b><span>RESEARCH</span>
+  </span>
 }
 
 const NAV = [
