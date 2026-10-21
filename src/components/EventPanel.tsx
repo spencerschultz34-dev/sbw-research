@@ -256,6 +256,40 @@ function sentences(text: string) {
   return text.match(/[^.!?]+[.!?]+["”]?\s*|[^.!?]+$/g) ?? [text]
 }
 
+/** One card per short spoken passage (like the Quartr transcript screenshot).
+ * Never modify the spoken words; preserve original paragraph ids for citations.
+ * Sentence timings remain attached to the correct sub-card. */
+function transcriptCards(paragraph: Paragraph): Paragraph[] {
+  const list = paragraph.sents?.length
+    ? paragraph.sents.map(x => ({ ...x, text: x.text.trim() }))
+    : sentences(paragraph.text).map(text => ({ text: text.trim(), t: null as number | null }))
+  const cards: Paragraph[] = []
+  let buffer: typeof list = []
+  let chars = 0
+  const push = () => {
+    if (!buffer.length) return
+    const first = buffer[0]
+    const ix = cards.length
+    cards.push({
+      ...paragraph,
+      id: ix === 0 ? paragraph.id : paragraph.id + '--' + ix,
+      start: first.t ?? paragraph.start,
+      text: buffer.map(x => x.text).join(' ').trim(),
+      sents: buffer,
+    })
+    buffer = []; chars = 0
+  }
+  for (const sentence of list) {
+    const len = sentence.text.length
+    if (buffer.length && (chars + len > 510 || (buffer.length >= 5 && chars > 210))) push()
+    buffer.push(sentence)
+    chars += len + 1
+    if (chars > 510 && buffer.length === 1) push()
+  }
+  push()
+  return cards.length ? cards : [paragraph]
+}
+
 function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string; nonce?: number }) {
   const t = ev.transcript!
   const timed = t.timed !== false
@@ -272,6 +306,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
   const live = ev.status === 'live'
   const visible = t.paragraphs.filter(p => (!live || p.start <= player.liveEdge) && (speakerFilter === null || p.speaker === speakerFilter) && (!qnaOnly || (!!t.qnaStart && p.start >= t.qnaStart)))
   const end = live ? player.liveEdge : ev.durationSec
+  const displayTurns = visible.flatMap(transcriptCards)
 
   const curPid = isPlaying ? [...visible].reverse().find((p) => p.start <= player.pos)?.id : undefined
 
@@ -369,12 +404,14 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
       </div>
       <div className="ep-scroll transcript" ref={scrollRef} onMouseUp={onMouseUp}>
         {visible.length === 0 && <div className="sbw-transcript-empty">No speaker turns match these filters. <button className="text-btn" onClick={() => { setSpeakerFilter(null); setQnaOnly(false) }}>Show complete transcript</button></div>}
-        {visible.map((p) => {
+        {displayTurns.map((p, cardIndex) => {
           const sp = t.speakers[p.speaker]
-          const cur = p.id === curPid
-          const hls = savedHere.filter((s) => s.ref === p.id && s.highlight).map((s) => s.highlight!)
-          const isSaved = savedHere.some((s) => s.ref === p.id && !s.highlight)
-          const next = visible[visible.indexOf(p) + 1]?.start ?? end
+          const parent = t.paragraphs.find(item => item.id === p.id || p.id.startsWith(item.id + '--')) ?? p
+          const nextTurn = displayTurns[cardIndex + 1]?.start ?? end
+          const cur = isPlaying && player.pos >= p.start && player.pos < nextTurn
+          const hls = savedHere.filter((s) => s.ref === parent.id && s.highlight).map((s) => s.highlight!)
+          const isSaved = savedHere.some((s) => s.ref === parent.id && !s.highlight)
+          const next = nextTurn
           // Real transcripts carry a start time per sentence; otherwise spread the paragraph evenly.
           const sents = p.sents?.map((x) => x.text + ' ') ?? sentences(p.text)
           const per = (next - p.start) / sents.length
@@ -387,10 +424,10 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
                 {sp.isOperator ? <span className="avatar op"><PhoneGlyph /></span> : <Avatar name={sp.name} size={30} />}
                 <div><b>{sp.name}</b>{sp.role && <small>{sp.role}</small>}</div>
                 <span className="grow" />
-                <button className={`ghost-icon para-save${isSaved ? ' on' : ''}`} title={isSaved ? 'Saved' : 'Save paragraph'} onClick={() => !isSaved && savePara(p)}><Bookmark size={14} fill={isSaved ? 'currentColor' : 'none'} /></button>
+                <button className={`ghost-icon para-save${isSaved ? ' on' : ''}`} title={isSaved ? 'Saved' : 'Save paragraph'} onClick={() => !isSaved && savePara(parent)}><Bookmark size={14} fill={isSaved ? 'currentColor' : 'none'} /></button>
                 {timed && <button className="stamp mono" title="Play from here" onClick={() => ev.hasAudio && player.play(ev.id, p.start)}>{fmtStamp(p.start)}</button>}
               </div>
-              <div data-pid={p.id} className="sbw-transcript-paragraphs">
+              <div data-pid={parent.id} className="sbw-transcript-paragraphs">
                 {groups.map((group, j) => <p key={j} className="sbw-transcript-reading-paragraph">
                   {group.map((i) => (
                     <span key={i} className={`sent${i === curSent ? ' now' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; if (timed && ev.hasAudio) player.play(ev.id, startOf(i)) }}>
