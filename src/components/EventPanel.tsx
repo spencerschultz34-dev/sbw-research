@@ -128,6 +128,7 @@ function Overview({ ev }: { ev: CompanyEvent }) {
             </ul>
           </section>
         ))}
+        {!ev.summary && ev.call && <VerifiedCallHighlights ev={ev} />}
         {!ev.summary && (
           <div className="sbw-summary-empty">
             <h2>Source materials</h2>
@@ -142,6 +143,34 @@ function Overview({ ev }: { ev: CompanyEvent }) {
       </article>
     </div>
   )
+}
+
+/** Use only actual timed transcript paragraphs — never fabricate an AI summary.
+ * Clicking an excerpt takes the analyst to the source paragraph and audio. */
+function VerifiedCallHighlights({ ev }: { ev: CompanyEvent }) {
+  const { openEvent } = useStore()
+  useEffect(() => { if (ev.call) void ensureTranscript(ev.id) }, [ev.id, ev.call])
+  if (!ev.transcript) return <section className="sbw-source-excerpts"><h2>Management commentary</h2><p className="muted small">Loading recorded call excerpts…</p></section>
+  const t = ev.transcript
+  const excerpts = t.paragraphs.filter(p => {
+    const speaker = t.speakers[p.speaker]
+    if (!speaker || speaker.isOperator || speaker.isAnalyst) return false
+    if (p.text.length < 130) return false
+    return !/forward-looking statements|safe harbor|operator instructions|recorded and archived|non-gaap measures|sec website/i.test(p.text.slice(0,180))
+  }).slice(0,5)
+  if (!excerpts.length) return <section className="sbw-source-excerpts"><h2>Management commentary</h2><p className="muted small">Read the full transcript for management's remarks.</p></section>
+  return <section className="sbw-source-excerpts">
+    <h2>Management commentary</h2>
+    <div className="sbw-excerpt-intro">Selected extracts from the recorded earnings call. These are source excerpts, not an AI-generated summary.</div>
+    <ul>
+      {excerpts.map((p,i) => {
+        const sentences = p.sents?.map(x=>x.text) ?? p.text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [p.text]
+        const quote = sentences.slice(0,3).join(' ').trim()
+        const preview = quote.length > 265 ? quote.slice(0,265).replace(/\s+\S*$/,'')+'…' : quote
+        return <li key={p.id}>{preview} <button className="cite" title={`Open ${t.speakers[p.speaker].name}'s remarks`} onClick={()=>openEvent(ev.id,'transcript',p.id)}>{i+1}</button></li>
+      })}
+    </ul>
+  </section>
 }
 
 function UpcomingOverview({ ev }: { ev: CompanyEvent }) {
