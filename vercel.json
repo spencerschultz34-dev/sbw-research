@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/sec-archive/:path*", "destination": "/api/sec?type=file&path=:path*" }
+    { "source": "/sec-archive/:path*", "destination": "/api/sec?type=file&path=:path*" },
+    { "source": "/((?!api/|sec-archive/|assets/|favicon\\.ico|robots\\.txt|.*\\.[a-zA-Z0-9]+$).*)", "destination": "/index.html" }
   ]
 }
