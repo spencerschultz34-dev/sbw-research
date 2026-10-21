@@ -188,6 +188,22 @@ export function ConsensusTable({ ev, compact }: { ev: CompanyEvent; compact?: bo
 
 /* ---------- Transcript ---------- */
 
+/** Split long speaking turns into short FactSet-style reading paragraphs, preserving per-sentence seek targets. */
+function transcriptGroups(lines: string[]): number[][] {
+  const groups: number[][] = []
+  let group: number[] = []
+  let chars = 0
+  lines.forEach((line, i) => {
+    if (group.length && (chars + line.length > 390 || (group.length >= 3 && chars > 155))) {
+      groups.push(group); group = []; chars = 0
+    }
+    group.push(i)
+    chars += line.length
+  })
+  if (group.length) groups.push(group)
+  return groups
+}
+
 function sentences(text: string) {
   return text.match(/[^.!?]+[.!?]+["”]?\s*|[^.!?]+$/g) ?? [text]
 }
@@ -279,7 +295,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
             <button key={ch.title} className="menu-item" onClick={() => { jump(ch.start); close() }}><span>{ch.title}</span><span className="muted mono">{fmtStamp(ch.start)}</span></button>
           ))}
         </Menu>
-        <button className="text-btn chip-btn" onClick={() => jump(t.qnaStart)}>Q&amp;A</button>
+        <button className="text-btn chip-btn" disabled={!t.qnaStart && t.qnaStart !== 0} title={t.qnaStart || t.qnaStart === 0 ? "Jump to questions and answers" : "Q&A start not identified"} onClick={() => jump(t.qnaStart)}>Q&amp;A</button>
         <span className="grow" />
         {find === null
           ? <button className="text-btn" onClick={() => setFind('')}><Search size={14} />Find</button>
@@ -306,6 +322,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
           const sents = p.sents?.map((x) => x.text + ' ') ?? sentences(p.text)
           const per = (next - p.start) / sents.length
           const startOf = (i: number) => p.sents?.[i]?.t ?? p.start + i * per
+          const groups = transcriptGroups(sents)
           const curSent = !cur ? -1 : p.sents ? p.sents.reduce((k, x, i) => (x.t != null && x.t <= player.pos ? i : k), 0) : Math.floor((player.pos - p.start) / per)
           return (
             <div key={p.id} id={`para-${p.id}`} className={`para${cur ? ' cur' : ''}${sp.isAnalyst ? ' analyst' : ''}${matches[hit] === p.id ? ' found' : ''}`}>
@@ -316,13 +333,15 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
                 <button className={`ghost-icon para-save${isSaved ? ' on' : ''}`} title={isSaved ? 'Saved' : 'Save paragraph'} onClick={() => !isSaved && savePara(p)}><Bookmark size={14} fill={isSaved ? 'currentColor' : 'none'} /></button>
                 {timed && <button className="stamp mono" title="Play from here" onClick={() => ev.hasAudio && player.play(ev.id, p.start)}>{fmtStamp(p.start)}</button>}
               </div>
-              <p data-pid={p.id}>
-                {sents.map((s, i) => (
-                  <span key={i} className={`sent${i === curSent ? ' now' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; if (timed && ev.hasAudio) player.play(ev.id, startOf(i)) }}>
-                    <Marked text={s} highlights={hls} find={find ?? ''} />
-                  </span>
-                ))}
-              </p>
+              <div data-pid={p.id} className="sbw-transcript-paragraphs">
+                {groups.map((group, j) => <p key={j} className="sbw-transcript-reading-paragraph">
+                  {group.map((i) => (
+                    <span key={i} className={`sent${i === curSent ? ' now' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; if (timed && ev.hasAudio) player.play(ev.id, startOf(i)) }}>
+                      <Marked text={sents[i]} highlights={hls} find={find ?? ''} />
+                    </span>
+                  ))}
+                </p>)}
+              </div>
             </div>
           )
         })}
