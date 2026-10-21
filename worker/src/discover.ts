@@ -135,12 +135,12 @@ async function register(page: Page): Promise<boolean> {
   return false
 }
 
-/** Presses the most likely play button in any frame. */
+/** Presses the most likely play button in any frame. Links are not clicked here (a site menu's "Watch" is not the
+ * webcast); playerLinks() follows the ones that look like the webcast instead. */
 async function play(page: Page): Promise<boolean> {
   for (const f of page.frames()) {
     const btn = f.locator('button[aria-label*="play" i]:visible, .vjs-big-play-button:visible, [class*="play-button" i]:visible, [class*="playbutton" i]:visible, [class*="btn-play" i]:visible')
-      .or(f.locator('button:visible, [role=button]:visible').filter({ hasText: /^\s*(play|listen|watch|replay|launch|join)\b/i }))
-      .or(f.locator('a:visible').filter({ hasText: /^\s*(listen|watch|play|replay)\b/i })).first()
+      .or(f.locator('button:visible, [role=button]:visible').filter({ hasText: /^\s*(play|listen|watch|replay|launch|join)\b/i })).first()
     if (await btn.count().catch(() => 0)) {
       if (await btn.click({ timeout: 3000 }).then(() => true, () => false)) return true
     }
