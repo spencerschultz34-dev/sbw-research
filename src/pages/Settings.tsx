@@ -53,9 +53,9 @@ export function SettingsPage() {
         ) : (
           <Modal title="Log out?" onClose={() => setOut(false)} footer={<>
             <button className="btn btn-quiet" onClick={() => setOut(false)}>Cancel</button>
-            <button className="btn btn-light" onClick={() => { store.resetDemo(); setOut(false); store.notify('Sample data reset') }}>Reset sample data</button>
+            <button className="btn btn-light" onClick={() => { store.resetDemo(); setOut(false); store.notify('App data reset') }}>Reset app data</button>
           </>}>
-            <p>Accounts are not switched on for this copy of the app. You can reset the sample data to how it started instead.</p>
+            <p>Accounts are not switched on for this copy of the app. You can reset your lists and saved items to how they started instead.</p>
           </Modal>
         )
       )}

@@ -11,13 +11,17 @@ export interface Company {
   id: CompanyId
   name: string
   ticker: string
-  country: 'US' | 'CA' | 'GB' | 'SE' | 'DE'
+  country: string
   industry: string
   marketCap: string
   color: string
   monogram: string
   hasEstimates: boolean
   segments: Segment[]
+  cik?: number
+  exchange?: string
+  fye?: string // fiscal year end as MMDD, from the SEC
+  logo?: string
 }
 
 export type EventType =
@@ -45,6 +49,7 @@ export interface ReportDoc {
   title: string
   pages: ReportPage[]
   oneLiner?: string
+  url?: string // a real filing document, shown as is instead of pages
 }
 
 export interface ReportPage {
@@ -76,6 +81,7 @@ export interface Paragraph {
   start: number
   text: string
   chapter: number
+  sents?: { t: number | null; text: string }[] // real transcripts: each sentence with its start time
 }
 
 export interface Chapter {
@@ -88,6 +94,8 @@ export interface Transcript {
   paragraphs: Paragraph[]
   chapters: Chapter[]
   qnaStart: number
+  timed?: boolean // false when the source has no timestamps (no audio follow-along)
+  source?: string
 }
 
 export interface Metric {
@@ -127,6 +135,9 @@ export interface CompanyEvent {
   slides?: Slide[]
   reports: ReportDoc[]
   hasAudio: boolean
+  call?: { symbol: string; exchange: string; year: number; quarter: number } // earnings call to load the transcript and audio from
+  filing?: { cik: number; acc: string; url: string } // SEC 8-K with the earnings release and slides
+  transcriptError?: string
 }
 
 export interface PressRelease {

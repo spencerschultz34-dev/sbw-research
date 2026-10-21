@@ -13,10 +13,11 @@ export function PlayerBar() {
   const { openEvent } = useStore()
   const nav = useNavigate()
   if (!p.eventId) return null
-  const ev = eventById(p.eventId)!
+  const ev = eventById(p.eventId)
+  if (!ev) return null
   const c = companyById(ev.companyId)
   const chapters = ev.transcript?.chapters ?? [{ title: ev.status === 'live' ? 'Live' : 'Recording', start: 0 }]
-  const total = p.isLive ? p.liveEdge : ev.durationSec
+  const total = p.isLive ? p.liveEdge : p.duration || ev.durationSec
   const curIdx = Math.max(0, chapters.findLastIndex((ch) => ch.start <= p.pos))
   const behindLive = p.isLive && p.liveEdge - p.pos > 3
 

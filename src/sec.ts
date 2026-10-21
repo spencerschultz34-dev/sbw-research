@@ -1,7 +1,7 @@
 // Client for the /api/sec function, which serves public SEC EDGAR data on the hosted app.
 import { useEffect, useState } from 'react'
 
-export type SecTicker = readonly [cik: number, ticker: string, name: string]
+export type SecTicker = readonly [cik: number, ticker: string, name: string, exchange?: string]
 export interface SecPoint { end: string; label: string; value: number; derived?: boolean }
 export interface SecFiling { form: string; filed: string; period: string | null; title: string; items: string; url: string; index: string; acc: string }
 export interface SecDoc { seq: string; description: string; name: string; type: string; size: string; path: string }
@@ -81,9 +81,14 @@ export const callExchange = (secExchange: string | undefined) => (secExchange ? 
 const callQs = (symbol: string, exchange: string, extra = '') => `symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange)}${extra}`
 
 export async function loadCallEvents(symbol: string, exchange: string, fye = '1231'): Promise<CallEvent[]> {
+  return (await loadCallList(symbol, exchange, fye)).events
+}
+
+/** Calls plus where they came from: EarningsCall has audio, the Alpha Vantage fallback doesn't. */
+export async function loadCallList(symbol: string, exchange: string, fye = '1231'): Promise<{ source: string; events: CallEvent[] }> {
   const r = await fetch(`/api/calls?type=events&${callQs(symbol, exchange, `&fye=${fye}`)}`)
-  if (!r.ok) return []
-  return ((await r.json()) as { events: CallEvent[] }).events
+  if (!r.ok) return { source: '', events: [] }
+  return r.json()
 }
 
 export async function loadTranscript(symbol: string, exchange: string, year: number, quarter: number): Promise<CallTranscript> {

@@ -1,5 +1,5 @@
 // Vercel Edge Function: reads public SEC EDGAR data and returns it in the shape the app uses.
-// GET /api/sec?type=tickers           → every US-listed company with a ticker
+// GET /api/sec?type=tickers           → every US-listed company with a ticker and its exchange
 // GET /api/sec?type=company&cik=320193 → profile, recent filings and quarterly financials
 // GET /api/sec?type=exhibits&cik=320193&acc=0000320193-26-000010 → documents attached to one filing
 // GET /sec-archive/<cik>/<acc>/<file> (rewritten to type=file) → a filing document served from our domain, so it can be shown in the app
@@ -48,8 +48,9 @@ async function sec<T>(url: string): Promise<T | null> {
 /* ---------- tickers ---------- */
 
 async function tickers() {
-  const raw = await sec<Record<string, { cik_str: number; ticker: string; title: string }>>('https://www.sec.gov/files/company_tickers.json')
-  return Object.values(raw ?? {}).map((t) => [t.cik_str, t.ticker, t.title] as const)
+  // This list also names each company's exchange, which the earnings call source needs.
+  const raw = await sec<{ data: [number, string, string, string | null][] }>('https://www.sec.gov/files/company_tickers_exchange.json')
+  return (raw?.data ?? []).map(([cik, name, ticker, exchange]) => [cik, ticker, name, exchange ?? ''] as const)
 }
 
 /* ---------- company ---------- */

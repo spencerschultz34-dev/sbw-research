@@ -2,7 +2,7 @@
 
 A research workspace for listed companies: earnings calendar, live and recorded calls with synced transcripts, slides and filings viewers, AI chat with citations, saved highlights, workspaces, watchlists and keyword alerts.
 
-All companies, tickers, numbers and documents in this build are **fictional sample data** (`src/data`). Nothing is fetched from the internet.
+Every company, event, transcript and filing is real. `src/data` loads them on demand from the server functions in `api/` (SEC EDGAR, earnings calls, Finnhub), so live data only shows on the hosted site, not in `npm run dev` or the claude.ai preview.
 
 ## Run it on your computer
 
@@ -50,6 +50,10 @@ This runs through `api/calls.ts`. Without a key it uses EarningsCall's free demo
 
 Add a free key from [alphavantage.co](https://www.alphavantage.co/support/#api-key) as `ALPHAVANTAGE_API_KEY` in Vercel. When EarningsCall can't serve a company (for example on the demo or trial key), the app lists its calls with EPS against estimates and shows a speaker-labelled transcript, without audio. The free key allows 25 requests a day, and each call is cached for a week.
 
+## Earnings calendar, estimates and logos (Finnhub)
+
+The calendar, upcoming events, consensus estimates (EPS and revenue) and company logos come from Finnhub's free plan through `api/market.ts`. Get a free key at [finnhub.io](https://finnhub.io/register) and add it as `FINNHUB_API_KEY` in Vercel's Environment Variables, then redeploy. Without it the calendar only shows past calls and SEC filings.
+
 ## Consensus estimates and segments (Business Quant)
 
 Company pages show next quarter's analyst consensus (with the low and high estimate), a beat/miss table for the last four quarters, and revenue by segment. In Vercel, add `BUSINESSQUANT_API_KEY` under Settings, Environment Variables, then redeploy. Never commit the key. The free preview covers Apple only; for any other company the sections stay hidden until the key is on a paid plan.
@@ -62,7 +66,8 @@ Company pages show next quarter's analyst consensus (with the low and high estim
 | `src/components/EventPanel.tsx` | Event overview, transcript, slides and report viewers |
 | `src/components/PlayerBar.tsx` | Docked audio player with chapters and live mode |
 | `src/pages/*` | Home, Calendar, Search, Chat, Saved, Workspaces, Watchlists, Alerts, Settings |
-| `src/data/*` | Sample companies and events, swap for a real data source |
+| `src/data/*` | Live company registry and events, loaded from the `api/` functions |
+| `api/market.ts` | Earnings calendar, estimates and logos from Finnhub |
 | `api/sec.ts`, `src/sec.ts`, `src/pages/SecCompany.tsx` | Real SEC EDGAR data: server function, client and company page |
 | `api/calls.ts`, `src/pages/CallView.tsx` | Earnings call transcripts and audio from EarningsCall |
 | `src/chatEngine.ts` | Local stand-in for AI answers with citations |

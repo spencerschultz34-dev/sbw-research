@@ -4,18 +4,21 @@ import { companyById, FLAGS } from '../data/companies'
 import type { Company, CompanyEvent } from '../data/types'
 import { usePlayer, useStore } from '../store'
 
-/* Company logo tile: original monogram, coloured by company */
+/* Company logo tile: the company's logo when Finnhub has one, otherwise a coloured monogram */
 export function Logo({ id, size = 32, badge }: { id: string; size?: number; badge?: ReactNode }) {
   const c = companyById(id)
+  const [broken, setBroken] = useState(false)
+  const img = c.logo && !broken
   return (
-    <span className="logo" style={{ width: size, height: size, background: c.color, fontSize: size * (c.monogram.length > 1 ? 0.36 : 0.46) }}>
-      {c.monogram}
+    <span className="logo" style={{ width: size, height: size, background: img ? '#fff' : c.color, fontSize: size * (c.monogram.length > 1 ? 0.36 : 0.46) }}>
+      {img ? <img src={c.logo} alt="" width={size} height={size} style={{ objectFit: 'contain', borderRadius: 'inherit', padding: size > 24 ? 3 : 1 }} onError={() => setBroken(true)} /> : c.monogram}
       {badge && <span className="logo-badge">{badge}</span>}
     </span>
   )
 }
 
 export function Flag({ country }: { country: Company['country'] }) {
+  if (country !== 'US' && country !== 'CA' && country !== 'GB' && !FLAGS[country]) return <span className="muted small">{country}</span>
   // Minimal flag glyphs drawn in SVG so they render on every OS
   const common = { width: 16, height: 11, className: 'flag', role: 'img' as const, 'aria-label': country }
   if (country === 'US') return (
@@ -48,10 +51,10 @@ export function ContentChips({ ev, showQueue = true, compactReports = true }: { 
   const playing = player.eventId === ev.id && player.playing
   return (
     <span className="content-chips" onClick={(e) => e.stopPropagation()}>
-      {ev.transcript && <button className="icon-chip" title="Transcript" onClick={() => openEvent(ev.id, 'transcript')}><TranscriptIcon /></button>}
+      {(ev.transcript || ev.call) && <button className="icon-chip" title="Transcript" onClick={() => openEvent(ev.id, 'transcript')}><TranscriptIcon /></button>}
       {ev.slides && <button className="icon-chip" title="Slides" onClick={() => openEvent(ev.id, 'slides')}><SlidesIcon /></button>}
-      {compactReports
-        ? ev.reports.length > 0 && <button className="icon-chip" title="Report" onClick={() => openEvent(ev.id, 'report')}><ReportIcon /></button>
+      {compactReports || !ev.reports.length
+        ? (ev.reports.length > 0 || ev.filing) && <button className="icon-chip" title="Report" onClick={() => openEvent(ev.id, 'report')}><ReportIcon /></button>
         : ev.reports.map((r) => (
           <button key={r.id} className="icon-chip wide" title={r.title} onClick={() => openEvent(ev.id, 'report', `${r.id}:0`)}><ReportIcon size={12} />{r.form ?? r.title}</button>
         ))}
