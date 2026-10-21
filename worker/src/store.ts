@@ -16,8 +16,10 @@ export const storeReady = () => !!(SB_URL && SB_KEY && s3FromEnv(process.env))
 
 async function sb(path: string, init: RequestInit = {}) {
   if (!SB_URL || !SB_KEY) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are not set')
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SB_URL)) throw new Error('SUPABASE_URL is not a valid Supabase project URL. In GitHub Actions secrets, use https://<project-ref>.supabase.co (not the dashboard URL).')
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, { ...init, headers: { apikey: SB_KEY, authorization: `Bearer ${SB_KEY}`, 'content-type': 'application/json', ...init.headers } })
   if (!r.ok) throw new Error(`Supabase ${init.method ?? 'GET'} ${path.split('?')[0]} returned ${r.status}: ${(await r.text()).slice(0, 300)}`)
+  if (init.method !== 'POST' && !(r.headers.get('content-type') ?? '').includes('application/json')) throw new Error(`Supabase returned ${r.status} with a non-JSON response. Check that GitHub Actions secret SUPABASE_URL is the project API URL and the project is active.`)
   return r
 }
 
