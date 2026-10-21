@@ -826,3 +826,6 @@ svg .axis { fill: var(--muted); font: 9px var(--ui); }
   .sbw-event-actions .chip { display:none; }
   .sbw-event-directory-head { align-items:flex-start;flex-direction:column;gap:5px; }
 }
+
+.sbw-card-event-action { display:inline-flex;align-items:center;gap:4px;color:var(--accent);font-weight:600;font-size:11.5px;margin:7px 0 4px;text-align:left;cursor:pointer!important; }
+.sbw-card-event-action:hover { text-decoration:underline;text-underline-offset:3px; }
