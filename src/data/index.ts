@@ -266,10 +266,65 @@ export function ensureTranscript(eventId: string): Promise<void> {
           const isAnalyst = /analyst/i.test(s.title)
           return { name: isOperator && /^speaker [a-z0-9]+$/i.test(s.name) ? 'Operator' : s.name, role: s.title, isOperator, isAnalyst }
         })
+        // MSFT FY26 Q4 stored recording uses diarization letters that are recycled
+        // across participants. Restore labels per SOURCE SPEAKING TURN, not per voice.
+        // Names are grounded in the call's audible introductions. Other calls retain
+        // provider metadata until their participants can be identified reliably.
+        const msftQ4 = symbol.toUpperCase() === 'MSFT' && year === 2026 && quarter === 4 && t.source === 'SBW recording'
+        const identifiedTurns: Record<string, { name: string; role: string }> = {
+          p1:{name:'Operator',role:'Conference operator'},
+          p2:{name:'Jonathan Nielsen',role:'Vice President, Investor Relations · Microsoft'},
+          p3:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p4:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p5:{name:'Jonathan Nielsen',role:'Investor Relations · Microsoft'},
+          p6:{name:'Operator',role:'Conference operator'},
+          p7:{name:'Carl Kierstedt',role:'Analyst · UBS'},
+          p8:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p9:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p10:{name:'Carl Kierstedt',role:'Analyst · UBS'},
+          p11:{name:'Jonathan Nielsen',role:'Investor Relations · Microsoft'},
+          p12:{name:'Operator',role:'Conference operator'},
+          p13:{name:'Brent Thill',role:'Analyst · Jefferies'},
+          p14:{name:'Brent Thill',role:'Analyst · Jefferies'},
+          p15:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p16:{name:'Jonathan Nielsen',role:'Investor Relations · Microsoft'},
+          p17:{name:'Mark Moerdler / Operator',role:'Analyst · Bernstein / Operator (combined transcript turn)'},
+          p18:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p19:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p20:{name:'Mark Moerdler',role:'Analyst · Bernstein'},
+          p21:{name:'Jonathan Nielsen',role:'Investor Relations · Microsoft'},
+          p22:{name:'Operator',role:'Conference operator'},
+          p23:{name:'Adam Wood',role:'Analyst · Morgan Stanley'},
+          p24:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p25:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p26:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p27:{name:'Adam Wood',role:'Analyst · Morgan Stanley'},
+          p28:{name:'Jonathan Nielsen',role:'Investor Relations · Microsoft'},
+          p29:{name:'Brad Zelnick / Operator',role:'Analyst · Deutsche Bank / Operator (combined transcript turn)'},
+          p30:{name:'Satya Nadella',role:'Chairman and Chief Executive Officer · Microsoft'},
+          p31:{name:'Jonathan Nielsen',role:'Investor Relations · Microsoft'},
+          p32:{name:'Operator',role:'Conference operator'},
+          p33:{name:'Gabriela Borges',role:'Analyst · Goldman Sachs'},
+          p34:{name:'Gabriela Borges',role:'Analyst · Goldman Sachs'},
+          p35:{name:'Amy Hood',role:'Chief Financial Officer · Microsoft'},
+          p36:{name:'Jonathan Nielsen',role:'Investor Relations · Microsoft'},
+          p37:{name:'Operator',role:'Conference operator'}
+        }
+        const identifiedKeys = new Map<string, number>()
         let chapter = 0
         const paragraphs = t.paragraphs.map((p, i) => {
           if (p.id === t.qnaStart) chapter = 1
-          return { id: p.id, speaker: Math.max(0, speakerKeys.indexOf(p.speaker)), start: p.start ?? i, text: p.sentences.map((s) => s.text).join(' '), chapter, sents: p.sentences }
+          const identified = msftQ4 ? identifiedTurns[p.id] : undefined
+          let speakerIndex = Math.max(0, speakerKeys.indexOf(p.speaker))
+          if (identified) {
+            const key = identified.name
+            if (!identifiedKeys.has(key)) {
+              identifiedKeys.set(key, speakers.length)
+              speakers.push({ name: identified.name, role: identified.role, isOperator: key === 'Operator', isAnalyst: /Analyst/.test(identified.role) })
+            }
+            speakerIndex = identifiedKeys.get(key)!
+          }
+          return { id: p.id, speaker: speakerIndex, start: p.start ?? i, text: p.sentences.map((s) => s.text).join(' '), chapter, sents: p.sentences }
         })
         const qna = paragraphs.find((p) => p.id === t.qnaStart)
         const tr: Transcript = {
