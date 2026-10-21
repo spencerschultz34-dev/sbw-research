@@ -56,7 +56,7 @@ export function GeneratedEventOverview({event}:{event:CompanyEvent}) {
     }
     void generate()
     return()=>{active=false}
-  },[event.id,event.transcript,docs,pending,attempt,overview])
+  },[event.id,docs,pending,attempt,overview])
   const sourceLabel=(id:string)=>id==='transcript'?'Call transcript':id==='report'?'Company press release':'Presentation slides'
   return <div className="sbw-generated-overview">
     {busy && !overview && <div className="sbw-ai-overview-status"><Sparkles size={16}/><div><strong>Preparing earnings overview</strong><p>Analyzing management commentary, the original release and published slide deck, with source citations.</p></div></div>}
