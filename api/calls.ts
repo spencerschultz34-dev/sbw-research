@@ -1,16 +1,24 @@
-// Vercel Edge Function: earnings call transcripts and audio from EarningsCall (earningscall.biz).
+// Vercel Edge Function: earnings call transcripts and audio.
+// Sources, in order: our own recordings (worker/ records webcasts and transcribes them into Supabase + R2),
+// then EarningsCall (earningscall.biz), then Alpha Vantage.
 // GET /api/calls?type=events&symbol=AAPL&exchange=NASDAQ
 // GET /api/calls?type=transcript&symbol=AAPL&exchange=NASDAQ&year=2026&quarter=4
 // GET /api/calls?type=audio&symbol=AAPL&exchange=NASDAQ&year=2026&quarter=4   (MP3, supports Range for seeking)
 // Set EARNINGSCALL_API_KEY in Vercel. Without it the free "demo" key is used, which only covers AAPL and MSFT.
 // When EarningsCall can't serve a company, ALPHAVANTAGE_API_KEY (free, 25 requests a day) supplies the list of calls and
 // speaker-labelled transcripts without audio or timestamps.
+import { presignGet, s3FromEnv } from '../lib/s3'
 export const config = { runtime: 'edge' }
 
 const BASE = 'https://api.earningscall.dev'
 const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
 const KEY = env.EARNINGSCALL_API_KEY || 'demo'
 const AV_KEY = env.ALPHAVANTAGE_API_KEY || ''
+// Our own call store: SUPABASE_URL (or the app's VITE_SUPABASE_URL) and the server-only SUPABASE_SERVICE_ROLE_KEY,
+// plus the S3_* storage settings for the audio (see lib/s3.ts).
+const SB_URL = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').replace(/\/+$/, '')
+const SB_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
+const S3 = s3FromEnv(env)
 
 export default async function handler(req: Request): Promise<Response> {
   const q = new URL(req.url).searchParams
@@ -23,14 +31,16 @@ export default async function handler(req: Request): Promise<Response> {
     switch (q.get('type')) {
       case 'events': {
         const fye = q.get('fye') ?? '1231'
-        try {
-          const r = await events(symbol, exchange)
-          if (r.events.length || !AV_KEY) return json(r, 3600)
-        } catch (e) { if (!AV_KEY) throw e }
-        return json(await avEvents(symbol, /^\d{4}$/.test(fye) ? fye : '1231'), 12 * 3600)
+        const mine = await ownEvents(symbol).catch(() => [])
+        const r = await otherEvents(symbol, exchange, fye).catch((e) => { if (!mine.length) throw e; return null })
+        // Our recordings win for the quarters they cover; the provider fills in the rest.
+        const rest = (r?.events ?? []).filter((e) => !mine.some((m) => m.year === e.year && m.quarter === e.quarter))
+        return json({ company: r?.company ?? symbol, source: mine.length ? 'SBW' : r?.source, events: [...mine, ...rest].sort((a, b) => b.year - a.year || b.quarter - a.quarter) }, mine.length ? 600 : 3600)
       }
-      case 'transcript':
+      case 'transcript': {
         if (!period) return json({ error: 'Missing year/quarter' }, 0, 400)
+        const mine = await ownCall(symbol, year, quarter).catch(() => null)
+        if (mine?.transcript) return json({ ...mine.transcript, audio: !!(mine.audio_key && S3) }, 3600)
         try {
           return json(await transcript(symbol, exchange, year, quarter), 7 * 86400)
         } catch (e) {
@@ -38,9 +48,14 @@ export default async function handler(req: Request): Promise<Response> {
           if (!AV_KEY || (status !== 403 && status !== 404)) throw e
           return json(await avTranscript(symbol, year, quarter), 7 * 86400)
         }
-      case 'audio':
+      }
+      case 'audio': {
         if (!period) return json({ error: 'Missing year/quarter' }, 0, 400)
+        const mine = await ownCall(symbol, year, quarter).catch(() => null)
+        // A short-lived link straight to storage, which handles seeking (Range) itself.
+        if (mine?.audio_key && S3) return new Response(null, { status: 302, headers: { location: await presignGet(S3, mine.audio_key, 6 * 3600), 'cache-control': 'private, max-age=3600' } })
         return audio(symbol, exchange, year, quarter, req.headers.get('range'))
+      }
       default: return json({ error: 'Unknown type' }, 0, 400)
     }
   } catch (e) {
@@ -72,7 +87,38 @@ async function call<T>(path: string, params: Record<string, string | number>): P
   return r.json() as Promise<T>
 }
 
+/* ---------- our own recordings (Supabase) ---------- */
+
+interface OwnRow { year: number; quarter: number; event_date: string | null; audio_key: string | null; transcript: Record<string, unknown> | null }
+
+async function sb<T>(query: string): Promise<T> {
+  if (!SB_URL || !SB_KEY) throw new Error('Call store not configured')
+  const r = await fetch(`${SB_URL}/rest/v1/${query}`, { headers: { apikey: SB_KEY, authorization: `Bearer ${SB_KEY}` } })
+  if (!r.ok) throw new Error(`Supabase returned ${r.status}`)
+  return r.json() as Promise<T>
+}
+
+async function ownEvents(symbol: string) {
+  if (!SB_URL || !SB_KEY) return []
+  const rows = await sb<OwnRow[]>(`calls?symbol=eq.${encodeURIComponent(symbol)}&status=eq.done&select=year,quarter,event_date&order=year.desc,quarter.desc`)
+  return rows.map((r) => ({ year: r.year, quarter: r.quarter, date: r.event_date, published: true, eps: null as null | { actual: number | null; estimate: number | null } }))
+}
+
+async function ownCall(symbol: string, year: number, quarter: number) {
+  if (!SB_URL || !SB_KEY) return null
+  const rows = await sb<OwnRow[]>(`calls?symbol=eq.${encodeURIComponent(symbol)}&year=eq.${year}&quarter=eq.${quarter}&status=eq.done&select=year,quarter,event_date,audio_key,transcript`)
+  return rows[0] ?? null
+}
+
 /* ---------- events ---------- */
+
+async function otherEvents(symbol: string, exchange: string, fye: string) {
+  try {
+    const r = await events(symbol, exchange)
+    if (r.events.length || !AV_KEY) return r
+  } catch (e) { if (!AV_KEY) throw e }
+  return avEvents(symbol, /^\d{4}$/.test(fye) ? fye : '1231')
+}
 
 interface EcEvent { year: number; quarter: number; conference_date: string | null; is_published?: boolean }
 
