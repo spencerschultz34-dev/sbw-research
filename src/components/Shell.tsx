@@ -9,6 +9,8 @@ import { useStore } from '../store'
 import { Logo, Ticker } from './ui'
 import { PlayerBar } from './PlayerBar'
 import { EventPanel } from './EventPanel'
+import { EventCompanyContext } from './EventCompanyContext'
+import { eventById } from '../data'
 import { ChatPanel } from '../pages/Chat'
 import { eventWhen } from '../format'
 import { matchTickers, titleCase, useTickers } from '../sec'
@@ -55,6 +57,7 @@ export function Shell() {
 
   const mode = prefs.theme === 'System' ? 'system' : prefs.theme.toLowerCase()
   const hasPanel = panel !== null
+  const activeEvent = panel?.kind === 'event' ? eventById(panel.eventId) : null
 
   return (
     <div className={`app mode-${mode}${prefs.pointer ? ' pointer' : ''}${collapsed ? ' collapsed' : ''}`}>
@@ -97,8 +100,8 @@ export function Shell() {
 
       <div className="stage">
         <div className={`panels${hasPanel ? ' split' : ''}${expanded ? ' expanded' : ''}`}>
-          <main className="panel main-panel">
-            <Outlet />
+          <main className={`panel main-panel${activeEvent ? ' sbw-context-host' : ''}`}>
+            {activeEvent ? <EventCompanyContext companyId={activeEvent.companyId} selectedEventId={activeEvent.id} /> : <Outlet />}
           </main>
           {panel?.kind === 'event' && <section className="panel side-panel"><EventPanel key={panel.eventId} /></section>}
           {panel?.kind === 'chat' && <section className="panel side-panel"><ChatPanel /></section>}
