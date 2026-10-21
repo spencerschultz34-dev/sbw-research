@@ -10,16 +10,17 @@ function dateNear(a: string|null,b:string){return !!a && Number.isFinite(Date.pa
 /** Display the real presentation documents, never generated placeholder slides. */
 export function SourceSlidesView({ev}:{ev:CompanyEvent}) {
   const c=companyById(ev.companyId)
-  const ir=useIrSource(c.cik??0,[c.ticker])
+  const configuredIr=useIrSource(c.cik??0,[c.ticker])
+  const irUrl=configuredIr?.url ?? (c.ticker.toUpperCase()==='MSFT'?'https://www.microsoft.com/en-us/investor/events/default':undefined)
   const [irSlides,setIrSlides]=useState<Source[]>([])
   const [loading,setLoading]=useState(false)
   const [irError,setIrError]=useState('')
   const secSlides=useMemo(()=>ev.reports.filter(r=>r.kind==='Slides' && !!r.url).map(r=>({title:r.title,url:r.url!,format:/\.pdf(?:[?#]|$)/i.test(r.url!)?'pdf':/\.pptx?(?:[?#]|$)/i.test(r.url!)?'pptx':'html',provenance:'SEC exhibit'})),[ev.reports])
   useEffect(()=>{
-    if(!ir?.url){setIrSlides([]);setLoading(false);return}
+    if(!irUrl){setIrSlides([]);setLoading(false);return}
     let active=true
     setLoading(true);setIrError('')
-    loadIrSite(ir.url).then(site=>{
+    loadIrSite(irUrl).then(site=>{
       if(!active)return
       const related=site.events.filter(item=>dateNear(item.date,ev.date)||(!item.date&&item.title.toLowerCase().includes(ev.title.toLowerCase())))
       const docs=related.flatMap(item=>item.documents).filter((d:IrDoc)=>d.kind==='slides'||(d.format==='pdf' && /presentation|slide|supplemental/i.test(d.title)))
@@ -28,7 +29,7 @@ export function SourceSlidesView({ev}:{ev:CompanyEvent}) {
       setIrSlides([...dedup.values()])
     }).catch(err=>{if(active)setIrError(err instanceof Error?err.message:'IR presentations unavailable')}).finally(()=>{if(active)setLoading(false)})
     return()=>{active=false}
-  },[ir?.url,ev.date,ev.title])
+  },[irUrl,ev.date,ev.title])
   const sources=useMemo(()=>{const all=new Map<string,Source>();for(const item of [...secSlides,...irSlides])all.set(item.url,item);return [...all.values()]},[secSlides,irSlides])
   const [index,setIndex]=useState(0)
   const [page,setPage]=useState(1)
@@ -36,7 +37,10 @@ export function SourceSlidesView({ev}:{ev:CompanyEvent}) {
   const [rail,setRail]=useState(true)
   useEffect(()=>{setIndex(0);setPage(1)},[ev.id])
   const source=sources[Math.min(index,Math.max(0,sources.length-1))]
-  const viewUrl=source ? source.format==='pdf'?(source.provenance==='Investor relations'?irPdfUrl(source.url):source.url)+`#page=${page}&zoom=${Math.round(zoom*100)}`:source.format==='pptx'?officeViewer(source.url):source.url : ''
+  const original = source?.url ?? ''
+  const officeSource = original.match(/[?&]src=([^&]+)/i)?.[1]
+  const pptUrl = officeSource ? decodeURIComponent(officeSource) : original
+  const viewUrl=source ? source.format==='pdf'?(source.provenance==='Investor relations'?irPdfUrl(source.url):source.url)+`#page=${page}&zoom=${Math.round(zoom*100)}`:source.format==='pptx'?officeViewer(pptUrl):source.url : ''
   const [reload,setReload]=useState(0)
   return <div className="doc-view sbw-source-slide-reader">
     <div className="doc-toolbar">
