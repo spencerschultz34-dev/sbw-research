@@ -57,7 +57,7 @@ export function CallView({ symbol, exchange, year, quarter }: { symbol: string; 
       {tr.audio && <audio ref={audio} src={audioUrl(symbol, exchange, year, quarter)} preload="metadata"
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onTimeUpdate={(e) => setPos(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDur(e.currentTarget.duration)} onError={() => setAudioErr(true)} />}
-      {!tr.audio && <p className="call-note">Transcript from {tr.source}. Audio and follow-along need an EarningsCall plan for this company.</p>}
+      {!tr.audio && <p className="call-note">Transcript from {tr.source}. Audio and follow-along appear once our call recorder has this call.</p>}
       {tr.audio && <div className="call-bar">
         <button className="ghost-icon" aria-label="Back 15 seconds" disabled={audioErr} onClick={() => seek(pos - 15, playing)}><RotateCcw size={16} /></button>
         <button className="play-btn call-play" aria-label={playing ? 'Pause' : 'Play'} disabled={audioErr} onClick={toggle}>{playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
@@ -71,7 +71,7 @@ export function CallView({ symbol, exchange, year, quarter }: { symbol: string; 
         {qna && qna.start != null && <button className="text-btn hide-narrow" onClick={() => seek(qna.start!)}><MessageCircleQuestion size={14} />Q&amp;A</button>}
         <button className={`ghost-icon${follow ? ' on' : ''}`} title={follow ? 'Following the audio' : 'Follow the audio'} onClick={() => setFollow(!follow)}><LocateFixed size={15} /></button>
       </div>}
-      {tr.audio && audioErr && <p className="call-note">Audio isn't available for this call on the current EarningsCall plan. The transcript still works.</p>}
+      {tr.audio && audioErr && <p className="call-note">Audio isn't available for this call. The transcript still works.</p>}
       <div className="call-scroll" ref={scroller}>
         <div className="transcript">
           {tr.paragraphs.map((p) => {
