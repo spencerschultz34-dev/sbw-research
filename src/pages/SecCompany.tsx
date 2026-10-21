@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
-import { ExternalLink, FileText, Headphones, Landmark, Sparkle } from 'lucide-react'
-import { companyById, eventsForCompany } from '../data'
+import { ExternalLink, FileText, Headphones, Landmark, Sparkle, ChevronRight } from 'lucide-react'
+import { companyById, eventsForCompany, ensureCompany } from '../data'
 import { useStore } from '../store'
 import { fmtDayMonth } from '../format'
 import { ConsensusTable } from '../components/EventPanel'
 import { CallView } from './CallView'
-import { IrEvents, IrLatest, IrReleases, IrSourceForm } from './IrViews'
+import { IrLatest, IrReleases, IrSourceForm } from './IrViews'
 import { useIrSource } from '../ir'
 import { archiveUrl, callExchange, isEarnings, loadCallEvents, type CallEvent, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
 import { Empty, FollowButton, Logo, TimingChips } from '../components/ui'
@@ -70,19 +70,43 @@ export function SecCompanyPage(props: { cik?: string; base?: string; companyId?:
       <div className="tabs">
         <NavLink to={base} end className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Overview</NavLink>
         <NavLink to={`${base}/events`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Events</NavLink>
-        {ir && <NavLink to={`${base}/press-releases`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Press releases</NavLink>}
-        <NavLink to={`${base}/earnings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Earnings<span className="count">{data.filings.filter(isEarnings).length}</span></NavLink>
-        <NavLink to={`${base}/filings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Filings<span className="count">{data.filings.length}</span></NavLink>
+        <NavLink to={`${base}/documents`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Documents <span className="count">{data.filings.length}</span></NavLink>
+        <NavLink to={`${base}/press-releases`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Press releases</NavLink>
+        <NavLink to={`${base}/mentions`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Mentions</NavLink>
       </div>
       <div className={full ? 'earn-wrap' : 'page-scroll'}>
-        {tab === 'filings' ? <Filings filings={data.filings} />
+        {(tab === 'filings' || tab === 'documents') ? <Filings filings={data.filings} />
           : tab === 'earnings' ? <Earnings d={data} />
-          : tab === 'events' ? (ir ? <IrEvents source={ir} symbol={ticker ?? ''} exchange={callExchange(data.exchanges[0])} fye={data.fiscalYearEnd || '1231'} /> : <AddIr ticker={ticker} />)
-          : tab === 'press-releases' && ir ? <IrReleases source={ir} />
+          : tab === 'events' ? <UnifiedEvents d={data} cid={cid} base={base} />
+          : tab === 'press-releases' ? (ir ? <IrReleases source={ir} /> : <AddIr ticker={ticker} />)
+          : tab === 'mentions' ? <div className="tab-body sbw-coming"><h2>Company mentions</h2><p className="muted">Cross-company transcript and document mentions will appear as they are indexed. No indexed mentions are available yet.</p></div>
           : <Overview d={data} base={base} cid={cid} />}
       </div>
     </div>
   )
+}
+
+/** Company events are shown even without a configured investor relations website. */
+function UnifiedEvents({ d, cid, base }: { d: SecCompany; cid: string; base: string }) {
+  const store = useStore()
+  const [category, setCategory] = useState<'all' | 'upcoming' | 'past'>('all')
+  useEffect(() => { if (cid) void ensureCompany(cid) }, [cid])
+  const items = eventsForCompany(cid).filter(e => category === 'all' || (category === 'upcoming' ? e.status === 'upcoming' : e.status !== 'upcoming')).sort((a,b) => b.date.localeCompare(a.date))
+  const now = Date.now()
+  const next = items.filter(e=>Date.parse(e.date)>now).sort((a,b)=>a.date.localeCompare(b.date))
+  const earlier = items.filter(e=>Date.parse(e.date)<=now)
+  const render = (e: typeof items[number]) => <button key={e.id} className="sbw-event-row" onClick={() => store.openEvent(e.id, e.status === 'upcoming' ? 'overview' : e.call ? 'transcript' : 'overview') }>
+    <span className="sbw-event-name">{e.title}<small>{e.type} · {day(e.date.slice(0,10))}</small></span>
+    <span className="sbw-event-actions">{e.call && <span className="chip"><Headphones size={12} /> Transcript</span>}{e.filing && <span className="chip"><FileText size={12} /> Filing</span>}{e.status === 'upcoming' && <span className="chip">Upcoming</span>}<ChevronRight size={15} /></span>
+  </button>
+  return <div className="sbw-event-directory">
+    <div className="sbw-event-directory-head"><h2>Events</h2><span className="muted small">{items.length} events · {d.name}</span></div>
+    <div className="sbw-event-filters">{([['all','All events'],['upcoming','Upcoming'],['past','Earlier events']] as const).map(([v,label])=><button className={`fchip${category===v?' on':''}`} key={v} onClick={()=>setCategory(v)}>{label}</button>)}</div>
+    {next.length>0 && <><h3 className="sec-title">Upcoming events</h3><div className="sbw-event-table">{next.map(render)}</div></>}
+    {earlier.length>0 && <><h3 className="sec-title">Earlier events</h3><div className="sbw-event-table">{earlier.map(render)}</div></>}
+    {!items.length && <div className="card pad"><p>We haven't indexed an earnings event for {d.name} yet.</p><p className="muted small">You can still read SEC earnings releases and reports on the Documents tab.</p><NavLink className="btn btn-light" to={`${base}/earnings`}>View earnings filings <ChevronRight size={14}/></NavLink></div>}
+    <div className="sbw-event-foot"><NavLink className="text-btn" to={`${base}/earnings`}>Earnings releases and filings <ChevronRight size={13}/></NavLink></div>
+  </div>
 }
 
 function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }) {

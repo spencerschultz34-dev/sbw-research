@@ -100,12 +100,13 @@ export function Home() {
             <div className="sec-head"><h2>Latest events</h2><button className="text-btn" onClick={() => nav('/calendar')}>Go to calendar<ChevronRight size={14} /></button></div>
             <div className="grid-2">
               {latest.map((e) => (
-                <div key={e.id} className="card ev-card clickable" onClick={() => store.openEvent(e.id)}>
+                <div key={e.id} className="card ev-card clickable" onClick={() => { nav(`/company/${e.companyId}`); store.closePanel() }}>
                   <div className="ev-card-head">
                     <Logo id={e.companyId} size={34} />
-                    <div className="ev-card-id"><b>{companyById(e.companyId).name}</b><small>{e.title} - {eventWhen(e.date)}</small></div>
+                    <div className="ev-card-id"><button className="sbw-company-link" onClick={(event) => { event.stopPropagation(); nav(`/company/${e.companyId}`); store.closePanel() }}>{companyById(e.companyId).name}</button><small>{e.title} - {eventWhen(e.date)}</small></div>
                     <ContentChips ev={e} />
                   </div>
+                  <button className="sbw-card-event-action" onClick={(click) => { click.stopPropagation(); store.openEvent(e.id) }}>Open {e.title} event <ChevronRight size={13} /></button>
                   {e.status === 'live' ? <div className="inset live-inset"><span className="live-badge"><i />LIVE</span>Call in progress. Listen live and follow the transcript.</div> : <ConsensusOrNote e={e} />}
                 </div>
               ))}
@@ -113,12 +114,13 @@ export function Home() {
             <div className="sec-head"><h2>Upcoming events</h2><button className="text-btn" onClick={() => nav('/calendar')}>Go to calendar<ChevronRight size={14} /></button></div>
             <div className="grid-3">
               {upcoming.map((e) => (
-                <div key={e.id} className="card up-card clickable" onClick={() => store.openEvent(e.id)}>
+                <div key={e.id} className="card up-card clickable" onClick={() => { nav(`/company/${e.companyId}`); store.closePanel() }}>
                   <div className="ev-card-head">
                     <Logo id={e.companyId} size={34} />
-                    <div className="ev-card-id"><b>{companyById(e.companyId).name}</b><small><span className="trunc">{e.title}</span> - {eventWhen(e.date)}</small></div>
+                    <div className="ev-card-id"><button className="sbw-company-link" onClick={(event) => { event.stopPropagation(); nav(`/company/${e.companyId}`); store.closePanel() }}>{companyById(e.companyId).name}</button><small><span className="trunc">{e.title}</span> - {eventWhen(e.date)}</small></div>
                   </div>
                   <TimingChips ev={e} h12={store.prefs.timeFormat === '12'} />
+                  <button className="sbw-card-event-action" onClick={(click) => { click.stopPropagation(); store.openEvent(e.id) }}>View event <ChevronRight size={13} /></button>
                 </div>
               ))}
             </div>
@@ -139,17 +141,18 @@ export function Home() {
 
 function FeedRow({ it }: { it: ActivityItem }) {
   const store = useStore()
+  const nav = useNavigate()
   const read = store.readActivity.includes(it.id)
   const ev = eventById(it.eventId)!
   const badge = it.docType === 'report' ? <ReportIcon size={10} /> : it.docType === 'slides' ? <SlidesIcon size={10} /> : it.docType === 'audio' ? <AudioIcon size={10} /> : <TranscriptIcon />
   return (
-    <button className="feed-row" onClick={() => {
+    <div className="feed-row" role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") { store.openEvent(it.eventId, it.openTab) } }} onClick={() => {
       store.set('readActivity', (r) => (r.includes(it.id) ? r : [...r, it.id]))
       store.openEvent(it.eventId, it.openTab)
     }}>
       <Logo id={it.companyId} size={30} badge={badge} />
       <span className="feed-text">
-        <b>{companyById(it.companyId).name}</b>
+        <button className="sbw-company-link" onClick={(e) => { e.stopPropagation(); nav(`/company/${it.companyId}`); store.closePanel() }}>{companyById(it.companyId).name}</button>
         <small>{it.label}{it.oneLiner && <> - {it.oneLiner}</>}</small>
       </span>
       <span className="feed-meta">
@@ -162,11 +165,13 @@ function FeedRow({ it }: { it: ActivityItem }) {
         <span className="muted small">{relAge(it.date)}</span>
         {!read && <i className="dot-unread" aria-label="Unread" />}
       </span>
-    </button>
+    </div>
   )
 }
 
 function ContinueCard({ id, pos }: { id: string; pos: number }) {
+  const nav = useNavigate()
+  const store = useStore()
   const ev = eventById(id)!
   const player = usePlayer()
   const pct = pos / ev.durationSec
@@ -174,7 +179,7 @@ function ContinueCard({ id, pos }: { id: string; pos: number }) {
     <div className="card up-card clickable" onClick={() => player.play(id, pos)}>
       <div className="ev-card-head">
         <Logo id={ev.companyId} size={34} />
-        <div className="ev-card-id"><b>{companyById(ev.companyId).name}</b><small className="trunc">{ev.title}</small></div>
+        <div className="ev-card-id"><button className="sbw-company-link" onClick={(event) => { event.stopPropagation(); nav(`/company/${ev.companyId}`); store.closePanel() }}>{companyById(ev.companyId).name}</button><small className="trunc">{ev.title}</small></div>
         <svg width="26" height="26" viewBox="0 0 26 26" aria-label={`${Math.round(pct * 100)}% listened`}>
           <circle cx="13" cy="13" r="10" fill="none" stroke="var(--line)" strokeWidth="2.5" />
           <circle cx="13" cy="13" r="10" fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeDasharray={`${pct * 62.8} 62.8`} transform="rotate(-90 13 13)" />
