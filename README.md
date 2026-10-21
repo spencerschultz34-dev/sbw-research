@@ -50,6 +50,23 @@ This runs through `api/calls.ts`. Without a key it uses EarningsCall's free demo
 
 Add a free key from [alphavantage.co](https://www.alphavantage.co/support/#api-key) as `ALPHAVANTAGE_API_KEY` in Vercel. When EarningsCall can't serve a company (for example on the demo or trial key), the app lists its calls with EPS against estimates and shows a speaker-labelled transcript, without audio. The free key allows 25 requests a day, and each call is cached for a week.
 
+## Our own call recordings (instead of paying EarningsCall)
+
+`worker/` records earnings calls itself. Every 3 hours a GitHub Actions job (`.github/workflows/calls.yml`, free on a public repository) reads the IR sites listed in `worker/companies.json`. For each call that has happened but isn't stored yet, it opens the webcast in a headless browser, fills in the attendee form if there is one, presses play and picks up the audio stream. Then it saves a mono MP3 with ffmpeg, transcribes it with speaker labels and word timings (AssemblyAI), and names the speakers from the call's own introductions (Claude). The MP3 goes to Cloudflare R2 and the transcript to the `calls` table in Supabase. `api/calls.ts` serves these first, so the **Call & transcript** view plays them with the transcript following along. EarningsCall's free demo and Alpha Vantage stay as fallbacks for calls we haven't recorded.
+
+To turn it on:
+
+1. **Supabase:** run `supabase/calls.sql` in the SQL Editor. Copy the Project URL and the **service_role** key (Project Settings → API).
+2. **Cloudflare R2** (10 GB free, then $0.015/GB a month; about 20 MB per call): create a bucket, e.g. `sbw-calls`, and an R2 API token with Object Read & Write on it. Note the S3 endpoint (`https://<account id>.r2.cloudflarestorage.com`), the access key ID and the secret.
+3. **AssemblyAI** (pay as you go, about $0.23 per hour of audio with speaker labels; new accounts get free hours): copy the API key.
+4. **Anthropic API** key, for naming speakers (a few cents per call). Optional: without it, speakers show as "Speaker A", "Speaker B".
+5. In GitHub, open **Settings → Secrets and variables → Actions** and add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `ASSEMBLYAI_API_KEY`, `ANTHROPIC_API_KEY`, and optionally `WEBCAST_EMAIL` (the address used when a webcast asks you to register).
+6. In Vercel, add `SUPABASE_SERVICE_ROLE_KEY` and the four `S3_*` values under Environment Variables, then redeploy. The app reads the Supabase URL from `VITE_SUPABASE_URL`, or `SUPABASE_URL` if you set it.
+
+To add a company, add a line to `worker/companies.json` with its ticker, exchange, IR page and fiscal year end (MMDD). To record one call by hand, run the **Earnings calls** workflow from the Actions tab with a webcast or event page URL, ticker, fiscal year and quarter. Locally: `cd worker && npm install && npx playwright install chromium`, then `node src/run.ts --dry-run --symbol MSFT` finds the latest webcast and records one minute, with no keys needed.
+
+Webcast terms usually allow listening but not rebroadcasting, so keep the app private to SBW.
+
 ## Investor relations pages: events, press releases, slides and transcripts
 
 Company pages have **Events** and **Press releases** tabs filled from the company's own investor relations (IR) website. Pick an earnings event to read its press release in the app, flip through its slides, open the transcript or webcast, and, where EarningsCall has the call, listen with the transcript following along.
@@ -78,7 +95,8 @@ Company pages show next quarter's analyst consensus (with the low and high estim
 | `src/pages/*` | Home, Calendar, Search, Chat, Saved, Workspaces, Watchlists, Alerts, Settings |
 | `src/data/*` | Sample companies and events, swap for a real data source |
 | `api/sec.ts`, `src/sec.ts`, `src/pages/SecCompany.tsx` | Real SEC EDGAR data: server function, client and company page |
-| `api/calls.ts`, `src/pages/CallView.tsx` | Earnings call transcripts and audio from EarningsCall |
+| `api/calls.ts`, `src/pages/CallView.tsx` | Earnings call transcripts and audio: our recordings first, then EarningsCall |
+| `worker/`, `lib/s3.ts`, `supabase/calls.sql`, `.github/workflows/calls.yml` | Our own call recorder: webcast discovery, recording, transcription, storage |
 | `api/ir.ts`, `src/ir.ts`, `src/pages/IrViews.tsx` | Company IR websites: events, press releases, slides, transcripts and the reader |
 | `src/chatEngine.ts` | Local stand-in for AI answers with citations |
 | `src/store.tsx` | App state, saved in the browser and, when signed in, to the account |
