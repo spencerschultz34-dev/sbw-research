@@ -66,7 +66,7 @@ jobs:
           URL: ${{ inputs.url }}
           YEAR: ${{ inputs.year }}
           QUARTER: ${{ inputs.quarter }}
-        run: node src/run.ts ${SYMBOL:+--symbol "$SYMBOL"} ${URL:+--url "$URL" --year "$YEAR" --quarter "$QUARTER"}
+        run: node src/run.ts --max 1 ${SYMBOL:+--symbol "$SYMBOL"} ${URL:+--url "$URL" --year "$YEAR" --quarter "$QUARTER"}
 
       - name: Not set up yet
         if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.dry_run && (env.SUPABASE_SERVICE_ROLE_KEY == '' || env.ASSEMBLYAI_API_KEY == '')
