@@ -125,7 +125,23 @@ async function hydrate(id: string) {
   for (const e of calls.events) addCall(id, ticker, exch, calls.source, e)
   for (const r of cal?.events ?? []) addCalendarRow(id, r)
   // Earnings releases filed with the SEC (8-K Item 2.02) that no call or calendar row covers yet.
-  for (const f of (sec?.filings ?? []).filter(isEarnings).slice(0, 12)) attachFiling(id, cik, f)
+  const earningsFilings = (sec?.filings ?? []).filter(isEarnings)
+  for (const f of earningsFilings.slice(0, 12)) attachFiling(id, cik, f)
+  // First-party recordings can lack an event date. Match them to a specific
+  // reported fiscal quarter and actual SEC earnings filing, rather than dropping them.
+  for (const call of calls.events.filter(x => x.published && !x.date)) {
+    const end = fiscalQuarterEnd(call.year, call.quarter, c.fye || '1231')
+    const matches = earningsFilings.filter(f => {
+      const days = (Date.parse(f.filed) - end.getTime()) / 864e5
+      return days >= -2 && days <= 75
+    }).sort((a, b) => Math.abs(Date.parse(a.filed) - end.getTime() - 28 * 864e5) - Math.abs(Date.parse(b.filed) - end.getTime() - 28 * 864e5))
+    const filing = matches[0]
+    if (!filing) continue
+    const event = eventNear(id, at(filing.filed), `Q${call.quarter} ${call.year}`)
+    event.title = `Q${call.quarter} ${call.year}`
+    event.call = { symbol: ticker, exchange: exch, year: call.year, quarter: call.quarter }
+    event.hasAudio = calls.source === 'SBW' || calls.source === 'EarningsCall'
+  }
   c.hasEstimates = eventsForCompany(id).some((e) => e.metrics?.length)
   sortEvents()
 }
@@ -144,6 +160,16 @@ function eventNear(cid: string, date: string, title: string) {
   const e = blankEvent(cid, date, title)
   EVENTS.push(e)
   return e
+}
+
+/** Quarter end derived from the issuer's fiscal-year end; used only to pair
+ * undated stored recordings with the actual filed earnings announcement. */
+function fiscalQuarterEnd(year: number, quarter: number, fye: string): Date {
+  const mm = Number(fye.slice(0, 2)) || 12
+  const dd = Number(fye.slice(2)) || 31
+  const end = new Date(Date.UTC(year, mm - 1, dd, 12))
+  end.setUTCMonth(end.getUTCMonth() - 3 * (4 - quarter))
+  return end
 }
 
 function addCall(cid: string, symbol: string, exchange: string, source: string, c: CallEvent) {
@@ -234,7 +260,10 @@ export function ensureTranscript(eventId: string): Promise<void> {
         const speakerKeys = Object.keys(t.speakers)
         const speakers = speakerKeys.map((k) => {
           const s = t.speakers[k]
-          return { name: s.name, role: s.title, isOperator: /operator/i.test(s.name), isAnalyst: /analyst/i.test(s.title) }
+          const opening = t.paragraphs.filter(p => p.speaker === k).slice(0, 2).flatMap(p => p.sentences.map(x => x.text)).join(' ').slice(0, 480)
+          const isOperator = /operator/i.test(s.name) || /greetings and welcome|welcome to the .*earnings.*conference call|listen.only mode|operator assistance|press star zero|press star 0/i.test(opening)
+          const isAnalyst = /analyst/i.test(s.title)
+          return { name: isOperator && /^speaker [a-z0-9]+$/i.test(s.name) ? 'Operator' : s.name, role: s.title, isOperator, isAnalyst }
         })
         let chapter = 0
         const paragraphs = t.paragraphs.map((p, i) => {
