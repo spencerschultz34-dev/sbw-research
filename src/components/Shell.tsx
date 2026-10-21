@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  House, Calendar, Search, Sparkle, Bookmark, LayoutGrid, Layers, Quote, ListEnd, Gift, CircleHelp, Settings,
+  House, Building2, Calendar, Search, Sparkle, Bookmark, LayoutGrid, Layers, Quote, ListEnd, Gift, CircleHelp, Settings,
   PanelLeftClose, PanelLeftOpen, Menu as MenuIcon, ArrowRight,
 } from 'lucide-react'
 import { COMPANIES, companyById, EVENTS } from '../data'
@@ -29,6 +29,7 @@ export function Wordmark() {
 
 const NAV = [
   { to: '/', label: 'Home', icon: House, end: true },
+  { to: '/companies', label: 'Companies', icon: Building2 },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/search', label: 'Search', icon: Search },
   { to: '/chat', label: 'Chat', icon: Sparkle },
@@ -142,7 +143,7 @@ function QuickAccess({ onClose }: { onClose: () => void }) {
     matchTickers(secList, t, 8).filter(([, tk]) => !comps.some((c) => c.ticker === tk)).slice(0, 5).forEach(([cik, tk, name]) => out.push({ group: 'All US companies', key: `sec${cik}`, label: <><span className="logo" style={{ width: 20, height: 20, background: 'var(--s1)', fontSize: 10 }}>{name[0]}</span><span>{titleCase(name)}</span><span className="chip chip-ticker">{tk}</span></>, run: () => nav(`/company/${tk.toLowerCase()}`) }))
     const evs = EVENTS.filter((e) => e.status !== 'upcoming' && COMPANIES.some((c) => c.id === e.companyId) && (!t || `${companyById(e.companyId).name} ${e.title}`.toLowerCase().includes(t))).slice(0, t ? 5 : 3)
     evs.forEach((e) => out.push({ group: 'Events', key: e.id, label: <><Logo id={e.companyId} size={20} /><span>{companyById(e.companyId).name} · {e.title}</span></>, hint: eventWhen(e.date), run: () => openEvent(e.id) }))
-    const pages: [string, string][] = [['Home', '/'], ['Calendar', '/calendar'], ['Search', '/search'], ['Chat', '/chat'], ['Saved', '/saved'], ['Workspaces', '/workspaces'], ['Watchlists', '/watchlists'], ['Keyword alerts', '/alerts'], ['Event queue', '/queue'], ['Settings', '/settings']]
+    const pages: [string, string][] = [['Home', '/'], ['Companies','/companies'], ['Calendar', '/calendar'], ['Search', '/search'], ['Chat', '/chat'], ['Saved', '/saved'], ['Workspaces', '/workspaces'], ['Watchlists', '/watchlists'], ['Keyword alerts', '/alerts'], ['Event queue', '/queue'], ['Settings', '/settings']]
     pages.filter(([l]) => !t || l.toLowerCase().includes(t)).slice(0, t ? 4 : 0).forEach(([l, p]) => out.push({ group: 'Go to', key: p, label: <span>{l}</span>, run: () => nav(p) }))
     const actions: [string, () => void][] = [
       ['New chat', () => nav('/chat')],
