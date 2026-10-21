@@ -87,6 +87,7 @@ async function tryPage(browser: Browser, url: string, timeoutMs: number, log: (m
       log(`  now on ${page.url()}; frames: ${page.frames().map((f) => f.url().split('?')[0]).filter((u) => u !== 'about:blank').join(', ')}`)
       log(`  media-like requests: ${[...new Set(seenReqs)].slice(0, 25).join(' | ') || 'none'}`)
       log(`  player links: ${links.join(', ') || 'none'}; anchors: ${(await anchors(page)).join(' | ')}`)
+      log(`  page text: ${(await page.locator('main').first().innerText({ timeout: 3000 }).catch(() => page.locator('body').innerText().catch(() => ''))).replace(/\s+/g, ' ').slice(0, 500)}`)
       log(`  buttons: ${(await page.$$eval('button, [role=button]', (els) => els.map((e) => `${e.getAttribute('aria-label') ?? ''}/${(e.textContent ?? '').trim().slice(0, 30)}/${e.className}`.slice(0, 90))).catch(() => [] as string[])).slice(0, 20).join(' | ')}`)
     }
     return { found: null, links }
