@@ -15,7 +15,11 @@ export function CompaniesPage() {
   const allowed=useMemo(()=>new Set(UNIVERSE_IDS),[])
   const companies=useMemo(()=>COMPANIES.filter(c=>allowed.has(c.id))
     .filter(c=>sector==='All sectors'||c.sector===sector)
-    .filter(c=>(c.ticker+' '+c.name+' '+c.sector+' '+c.industry+' '+c.description).toLowerCase().includes(query.toLowerCase().trim()))
+    .filter(c=>{
+      const term=query.toLowerCase().trim()
+      const matchText=(c.ticker+' '+c.ticker.replace(/[.\/-]/g,' ')+' '+c.name+' '+c.sector+' '+c.industry+' '+c.description).toLowerCase()
+      return matchText.includes(term) || c.ticker.toLowerCase().replace(/[^a-z0-9]/g,'')===term.replace(/[^a-z0-9]/g,'')
+    })
     .slice().sort((a,b)=>a.name.localeCompare(b.name)),
     [allowed,sector,query])
   return <div className="page sbw-company-universe">
