@@ -32,7 +32,7 @@ export function EventPanel() {
     { id: 'slides', label: 'Slides', has: !!ev.slides },
     { id: 'report', label: 'Report', has: ev.reports.length > 0 || !!ev.filing, count: ev.reports.length > 1 ? ev.reports.length : undefined },
   ]
-  const all = eventsForCompany(ev.companyId)
+  const all = eventsForCompany(ev.companyId).slice().sort((a,b)=>b.date.localeCompare(a.date))
 
   return (
     <div className="event-panel">
@@ -73,11 +73,11 @@ export function EventPanel() {
           </>
         )}
       </div>
-      <div className="ep-body">
+      <div className="ep-body sbw-msft-reader">
         {tab === 'overview' && <Overview ev={ev} />}
         {tab === 'transcript' && (ev.transcript ? <TranscriptView ev={ev} focus={panel.focus} nonce={panel.nonce} /> : <Loading ev={ev} what="transcript" />)}
         {tab === 'report' && (ev.reports.length > 0 ? <ReportView key={ev.reports.length} ev={ev} focus={panel.focus} /> : <Loading ev={ev} what="report" />)}
-        {tab === 'slides' && ev.slides && <SlidesView ev={ev} focus={panel.focus} />}
+        {tab === 'slides' && (ev.slides?.length ? <SlidesView ev={ev} focus={panel.focus} /> : <div className="ep-scroll"><div className="empty">No source presentation slides are available for this event.</div></div>)}
       </div>
     </div>
   )
@@ -103,7 +103,8 @@ function Overview({ ev }: { ev: CompanyEvent }) {
           <div className="live-banner"><span className="live-badge"><i />LIVE</span>The call is in progress. The summary updates when the transcript is final.
             <button className="btn btn-light btn-sm" onClick={() => { player.play(ev.id); openEvent(ev.id, 'transcript') }}>Listen live</button></div>
         )}
-        <h1>{ev.headline ?? `${companyById(ev.companyId).name} ${ev.title} results`}</h1>
+        <div className="sbw-summary-kicker">Earnings call · {fmtDate(ev.date)}</div>
+        <h1>{ev.headline ?? `${companyById(ev.companyId).name} ${ev.title} earnings`}</h1>
         {ev.metrics?.some((m) => m.actual) && (
           <>
             <div className="bm-label">Beat/miss vs estimates in USD <Info size={13} /> <span className="muted">Reported {fmtDate(ev.date)}</span></div>
@@ -128,10 +129,14 @@ function Overview({ ev }: { ev: CompanyEvent }) {
           </section>
         ))}
         {!ev.summary && (
-          <div className="row gap8 wrap">
+          <div className="sbw-summary-empty">
+            <h2>Source materials</h2>
+            <p className="muted">An editorial earnings summary has not been generated for this event. Use the original call and SEC documents below for primary-source research.</p>
+            <div className="row gap8 wrap">
             {ev.call && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'transcript')}>Read the transcript</button>}
             {ev.filing && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'report')}>Earnings release</button>}
             {!ev.call && !ev.filing && <p className="muted">Nothing has been published for this event yet.</p>}
+            </div>
           </div>
         )}
       </article>
