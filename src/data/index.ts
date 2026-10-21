@@ -310,6 +310,7 @@ export function ensureTranscript(eventId: string): Promise<void> {
           p36:{name:'Jonathan Neilson',role:'Investor Relations · Microsoft'},
           p37:{name:'Operator',role:'Conference operator'}
         }
+        if (msftQ4) speakers.length = 0 // never show unused raw voice labels in the speaker filter
         const identifiedKeys = new Map<string, number>()
         let chapter = 0
         const paragraphs = t.paragraphs.flatMap((p, i) => {
