@@ -1,6 +1,6 @@
 # Records earnings calls with our own pipeline (worker/): every 3 hours it reads the IR sites in
 # worker/companies.json, and records, transcribes and stores any call that has happened but isn't stored yet.
-# Pull requests that touch the pipeline get a dry run: find the latest webcast stream and record one minute.
+# Pull requests and branch pushes that touch the pipeline get a dry run: find the latest webcast stream and record one minute.
 name: Earnings calls
 
 on:
@@ -15,9 +15,12 @@ on:
       dry_run: { description: 'Only find the stream and record a minute', type: boolean, default: false }
   pull_request:
     paths: ['worker/**', 'api/ir.ts', 'lib/**', '.github/workflows/calls.yml']
+  push:
+    branches-ignore: [main]
+    paths: ['worker/**', 'api/ir.ts', 'lib/**', '.github/workflows/calls.yml']
 
 concurrency:
-  group: earnings-calls-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  group: earnings-calls-${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || 'main' }}
   cancel-in-progress: false
 
 permissions:
@@ -53,13 +56,13 @@ jobs:
       - run: npm run check
 
       - name: Dry run
-        if: github.event_name == 'pull_request' || inputs.dry_run
+        if: github.event_name == 'pull_request' || github.event_name == 'push' || inputs.dry_run
         env:
           SYMBOL: ${{ inputs.symbol }}
         run: node src/run.ts --dry-run ${SYMBOL:+--symbol "$SYMBOL"}
 
       - name: Record new calls
-        if: github.event_name != 'pull_request' && !inputs.dry_run && env.SUPABASE_SERVICE_ROLE_KEY != '' && env.ASSEMBLYAI_API_KEY != ''
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.dry_run && env.SUPABASE_SERVICE_ROLE_KEY != '' && env.ASSEMBLYAI_API_KEY != ''
         env:
           SYMBOL: ${{ inputs.symbol }}
           URL: ${{ inputs.url }}
@@ -68,5 +71,5 @@ jobs:
         run: node src/run.ts ${SYMBOL:+--symbol "$SYMBOL"} ${URL:+--url "$URL" --year "$YEAR" --quarter "$QUARTER"}
 
       - name: Not set up yet
-        if: github.event_name != 'pull_request' && !inputs.dry_run && (env.SUPABASE_SERVICE_ROLE_KEY == '' || env.ASSEMBLYAI_API_KEY == '')
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && !inputs.dry_run && (env.SUPABASE_SERVICE_ROLE_KEY == '' || env.ASSEMBLYAI_API_KEY == '')
         run: echo "::notice::Add the Supabase, S3 (R2) and AssemblyAI secrets in Settings → Secrets and variables → Actions to start recording calls."
