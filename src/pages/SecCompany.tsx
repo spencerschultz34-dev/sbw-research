@@ -113,6 +113,9 @@ function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }
   const store = useStore()
   const ir = useIrSource(d.cik, d.tickers)
   const next = cid ? eventsForCompany(cid).filter((e) => e.status === 'upcoming').sort((a, b) => a.date.localeCompare(b.date))[0] : undefined
+  const historical = cid ? eventsForCompany(cid).filter(e => e.status !== 'upcoming').sort((a,b)=>b.date.localeCompare(a.date)) : []
+  const latestEvent = historical[0]
+  const latestCall = historical.find(e => e.call)
   const f = d.financials
   const fy = d.fiscalYearEnd ? `${Number(d.fiscalYearEnd.slice(2))} ${MON[Number(d.fiscalYearEnd.slice(0, 2)) - 1]}` : '–'
   const rows: [string, string | null][] = [
@@ -122,26 +125,33 @@ function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }
   return (
     <div className="co-overview">
       <div className="co-left">
-        {ir && <IrLatest source={ir} cik={String(d.cik)} />}
-        {next && (
-          <>
-            <h3 className="sec-title">Upcoming event</h3>
-            <div className="card pad clickable" onClick={() => store.openEvent(next.id)}>
-              <div className="co-ev-head"><div><b>{next.title}</b><small>{fmtDayMonth(next.date)}</small></div></div>
-              <TimingChips ev={next} h12={store.prefs.timeFormat === '12'} />
-              {next.metrics && <ConsensusTable ev={next} compact />}
+        <div className="sbw-co-section-title"><h3>Upcoming event</h3><NavLink to={`${base}/events`} className="text-btn">All events <ChevronRight size={14}/></NavLink></div>
+        {next ? (
+          <button className="card sbw-overview-event" onClick={() => store.openEvent(next.id)}>
+            <div className="sbw-overview-event-heading"><strong>{next.title}</strong><span className="chip">{next.estimated ? 'Estimated' : 'Upcoming'}</span></div>
+            <span className="muted small">{fmtDayMonth(next.date)}</span>
+            <TimingChips ev={next} h12={store.prefs.timeFormat === '12'} />
+            {next.metrics && <div className="sbw-overview-metrics"><ConsensusTable ev={next} compact /></div>}
+            <span className="sbw-overview-action">View event <ChevronRight size={14}/></span>
+          </button>
+        ) : <div className="card pad"><span className="muted small">No upcoming earnings date has been confirmed by our current data sources.</span></div>}
+        <div className="sbw-co-section-title"><h3>Latest event</h3><NavLink to={`${base}/events`} className="text-btn">Earlier events <ChevronRight size={14}/></NavLink></div>
+        {latestEvent ? (
+          <div className="card sbw-overview-event">
+            <button className="sbw-event-card-main" onClick={() => store.openEvent(latestEvent.id)}>
+              <strong>{latestEvent.title}</strong>
+              <span className="muted small">{fmtDayMonth(latestEvent.date)}</span>
+              {latestEvent.headline && <span className="sbw-event-headline">{latestEvent.headline}</span>}
+              {latestEvent.metrics?.length ? <ConsensusTable ev={latestEvent} compact /> : null}
+            </button>
+            <div className="sbw-overview-event-quick">
+              {(latestEvent.call || latestCall) && <button onClick={() => store.openEvent((latestEvent.call ? latestEvent : latestCall!).id, 'transcript')}><Headphones size={14}/> Transcript and audio</button>}
+              {latestEvent.filing && <button onClick={() => store.openEvent(latestEvent.id,'report')}><FileText size={14}/> Report</button>}
+              <NavLink to={`${base}/earnings`}>Earnings documents <ChevronRight size={14}/></NavLink>
             </div>
-          </>
-        )}
-        {d.filings.find(isEarnings) && (
-          <>
-            <h3 className="sec-title">Latest results</h3>
-            <NavLink to={`${base}/earnings`} className="card pad clickable block">
-              <b>Earnings release</b>
-              <span className="muted small">Filed {day(d.filings.find(isEarnings)!.filed)} · press release and slides from the 8-K</span>
-            </NavLink>
-          </>
-        )}
+          </div>
+        ) : (d.filings.find(isEarnings) ? <NavLink to={`${base}/earnings`} className="card pad clickable block"><strong>Latest earnings release</strong><small className="muted block">Filed {day(d.filings.find(isEarnings)!.filed)} · View SEC release and supporting documents</small></NavLink> : <div className="card pad muted small">No prior earnings events indexed.</div>)}
+        {ir && <IrLatest source={ir} cik={String(d.cik)} />}
         <h3 className="sec-title">Profile</h3>
         <div className="card list-card">
           {rows.filter(([, v]) => v).map(([k, v]) => <div key={k} className="list-row"><span className="muted">{k}</span><span className="right">{v}</span></div>)}
