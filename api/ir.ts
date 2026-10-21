@@ -9,6 +9,7 @@
 //   2. Microsoft: the events list the investor pages embed as JSON
 //   3. Anything else: the links on the IR page and its events/news pages, grouped by quarter
 // Every request identifies itself and checks the site's robots.txt first; pages robots.txt disallows are skipped.
+import { verifiedIrFallback } from './ir-seeds'
 export const config = { runtime: 'edge' }
 
 const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
@@ -30,7 +31,14 @@ export default async function handler(req: Request): Promise<Response> {
   try {
     switch (q.get('type')) {
       case 'discover': return json(await discover(target), 24 * HOUR)
-      case 'site': return json(await site(target), 6 * HOUR)
+      case 'site': {
+        try { return json(await site(target), 6 * HOUR) }
+        catch (error) {
+          const verified = verifiedIrFallback(target)
+          if (verified) return json({url:target.href,host:target.hostname,fetchedAt:new Date().toISOString(),...verified},6*HOUR)
+          throw error
+        }
+      }
       case 'doc': return json(await doc(target), 24 * HOUR)
       case 'file': return file(target)
       default: return json({ error: 'Unknown type' }, 0, 400)
