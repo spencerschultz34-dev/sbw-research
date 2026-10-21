@@ -48,6 +48,7 @@ export async function findStream(urls: string[], opts: { timeoutMs?: number; log
 
 async function tryPage(browser: Browser, url: string, timeoutMs: number, log: (m: string) => void): Promise<{ found: Found | null; links: string[] }> {
   const ctx = await browser.newContext({ userAgent: UA, viewport: { width: 1280, height: 900 }, locale: 'en-US' })
+  ctx.setDefaultTimeout(10_000) // no single click, fill or read may hang the run
   let page = await ctx.newPage()
   ctx.on('page', (p) => { page = p }) // players that open in a new window
   const hits: { url: string; referer: string }[] = []

@@ -42,6 +42,11 @@ function fiscalOf(date: string, fye: string) {
   return { year: m <= endMonth ? y : y + 1, quarter: Math.floor(((m - endMonth - 1 + 12) % 12) / 3) + 1 }
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout
+  return Promise.race([p, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms) })]).finally(() => clearTimeout(timer))
+}
+
 async function irSite(url: string): Promise<IrSite> {
   const r = await irHandler(new Request(`https://worker.local/api/ir?type=site&url=${encodeURIComponent(url)}`))
   const body = await r.json()
@@ -78,7 +83,7 @@ async function process1(job: Job, attempts: number) {
   const dir = await mkdtemp(join(tmpdir(), 'call-'))
   const base = { symbol: company.symbol, year, quarter, exchange: company.exchange, company: company.name, title: job.title, event_date: job.date, event_page: job.page }
   try {
-    const found = await findStream(job.urls, { log })
+    const found = await withTimeout(findStream(job.urls, { log }), 12 * 60_000, 'Looking for the webcast stream took over 12 minutes')
     if (!found) throw new Error('No webcast stream found on the event pages (the replay may not be up yet, or the player needs a reader of its own)')
     const input = await pickVariant(found)
     log(`${tag}: stream ${new URL(input).origin}${new URL(input).pathname}`) // no query: it can hold access tokens, and Actions logs are public
@@ -136,4 +141,5 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e.message); process.exit(1) })
+// Exit explicitly: a browser left open by a timed-out search would otherwise keep the process alive.
+main().then(() => process.exit(process.exitCode ?? 0), (e) => { console.error(e.message); process.exit(1) })

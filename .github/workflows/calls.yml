@@ -56,6 +56,7 @@ jobs:
       - run: npm run check
 
       - name: Dry run
+        timeout-minutes: 30
         if: github.event_name == 'pull_request' || github.event_name == 'push' || inputs.dry_run
         env:
           SYMBOL: ${{ inputs.symbol }}
