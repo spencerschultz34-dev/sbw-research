@@ -134,8 +134,8 @@ function Overview({ ev }: { ev: CompanyEvent }) {
         {!ev.summary && ev.call && <VerifiedCallHighlights ev={ev} />}
         {!ev.summary && (
           <div className="sbw-summary-empty">
-            <h2>Source materials</h2>
-            <p className="muted">An editorial earnings summary has not been generated for this event. Use the original call and SEC documents below for primary-source research.</p>
+            <h2>Primary sources</h2>
+            <p className="muted">Read the complete call and source earnings documents. All excerpts above link to their original transcript passages.</p>
             <div className="row gap8 wrap">
             {ev.call && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'transcript')}>Read the transcript</button>}
             {ev.filing && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'report')}>Earnings release</button>}
@@ -153,27 +153,46 @@ function Overview({ ev }: { ev: CompanyEvent }) {
 function VerifiedCallHighlights({ ev }: { ev: CompanyEvent }) {
   const { openEvent } = useStore()
   useEffect(() => { if (ev.call) void ensureTranscript(ev.id) }, [ev.id, ev.call])
-  if (!ev.transcript) return <section className="sbw-source-excerpts"><h2>Management commentary</h2><p className="muted small">Loading recorded call excerpts…</p></section>
   const t = ev.transcript
-  const excerpts = t.paragraphs.filter(p => {
-    const speaker = t.speakers[p.speaker]
-    if (!speaker || speaker.isOperator || speaker.isAnalyst) return false
-    if (p.text.length < 130) return false
-    return !/forward-looking statements|safe harbor|operator instructions|recorded and archived|non-gaap measures|sec website/i.test(p.text.slice(0,180))
-  }).slice(0,5)
-  if (!excerpts.length) return <section className="sbw-source-excerpts"><h2>Management commentary</h2><p className="muted small">Read the full transcript for management's remarks.</p></section>
-  return <section className="sbw-source-excerpts">
-    <h2>Management commentary</h2>
-    <div className="sbw-excerpt-intro">Selected extracts from the recorded earnings call. These are source excerpts, not an AI-generated summary.</div>
-    <ul>
-      {excerpts.map((p,i) => {
-        const sentences = p.sents?.map(x=>x.text) ?? p.text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [p.text]
-        const quote = sentences.slice(0,3).join(' ').trim()
-        const preview = quote.length > 265 ? quote.slice(0,265).replace(/\s+\S*$/,'')+'…' : quote
-        return <li key={p.id}>{preview} <button className="cite" title={`Open ${t.speakers[p.speaker].name}'s remarks`} onClick={()=>openEvent(ev.id,'transcript',p.id)}>{i+1}</button></li>
-      })}
-    </ul>
-  </section>
+  if (!t) return <section className="sbw-source-excerpts"><h2>Executive summary</h2><p className="muted small">Retrieving the recorded call to assemble a source-linked overview…</p></section>
+  const source = t.paragraphs.filter(p => {
+    const sp = t.speakers[p.speaker]
+    return !!sp && !sp.isOperator && p.text.length > 100 && !/forward-looking statements|safe harbor|operator instructions|recorded and archived|sec website|quarterly results are available online/i.test(p.text.slice(0,230))
+  })
+  const prepared = source.filter(p => p.start < t.qnaStart || !t.qnaStart).filter(p=>!t.speakers[p.speaker].isAnalyst)
+  const questions = t.qnaStart ? source.filter(p=>p.start>=t.qnaStart) : []
+  // Evidence-first: these are verbatim excerpts, not a model-produced financial interpretation.
+  const excerpt = (p: typeof source[number]) => {
+    const sentences = p.sents?.map(x=>x.text) ?? p.text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [p.text]
+    const joined = sentences.slice(0,3).join(' ').trim()
+    return joined.length > 285 ? joined.slice(0,285).replace(/\s+\S*$/,'')+'…' : joined
+  }
+  const bullets = (group:typeof source, count:number, from:number) => group.slice(0,count).map((p,i)=><li key={p.id}>
+    <span>{excerpt(p)}</span>
+    <button className="cite" title={`Open ${t.speakers[p.speaker].name} at ${fmtStamp(p.start)}`} onClick={()=>openEvent(ev.id,'transcript',p.id)}>{from+i}</button>
+  </li>)
+  const highlights = prepared.filter(p=>/revenue|growth|cloud|azure|earnings|margin|operating income|guidance|commercial|profit|cash flow/i.test(p.text)).slice(0,3)
+  const qna = questions.filter(p=>!t.speakers[p.speaker].isAnalyst).slice(0,3)
+  return <>
+    <section className="sbw-source-excerpts">
+      <h2>Executive summary</h2>
+      <p className="sbw-excerpt-intro">Source-grounded call overview · References open the original speaking passage. Statements below are transcript extracts, not independently verified analysis.</p>
+      {prepared.length ? <ul>{bullets(prepared,3,1)}</ul> : <p className="muted small">Management remarks have not been identified in this call.</p>}
+    </section>
+    <section className="sbw-source-excerpts">
+      <h2>Financial highlights</h2>
+      {ev.metrics?.some(m=>m.actual!=null) ? <ul>{ev.metrics.filter(m=>m.actual!=null).map(m=><li key={m.label}>
+        <strong>{m.label}:</strong> reported {fmtNum(m.actual!,m.unit)} versus a {fmtNum(m.estimate,m.unit)} estimate ({pctChange(m.actual!,m.estimate)>=0?'+':''}{pctChange(m.actual!,m.estimate).toFixed(1)}%).
+        <span className="sbw-fin-source"> Market-data provider consensus</span>
+      </li>)}</ul> : <p className="muted small">No verified actual-versus-estimate figures are available for this event.</p>}
+      {highlights.length > 0 && <><h3 className="sbw-overview-mini-heading">Management discussion</h3><ul>{bullets(highlights,3,4)}</ul></>}
+    </section>
+    {t.qnaStart>0 && <section className="sbw-source-excerpts">
+      <h2>Questions &amp; answers</h2>
+      {qna.length ? <ul>{bullets(qna,3,7)}</ul> : <p className="muted small">The Q&amp;A begins at {fmtStamp(t.qnaStart)}. Open the transcript to follow the questions.</p>}
+      <button className="text-btn" onClick={()=>openEvent(ev.id,'transcript')}>Read the full Q&amp;A <ChevronRight size={14}/></button>
+    </section>}
+  </>
 }
 
 function UpcomingOverview({ ev }: { ev: CompanyEvent }) {
