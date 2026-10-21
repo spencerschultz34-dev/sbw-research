@@ -45,7 +45,12 @@ export function Shell() {
   const [mobileNav, setMobileNav] = useState(false)
   const loc = useLocation()
 
-  useEffect(() => { setMobileNav(false) }, [loc.pathname])
+  useEffect(() => {
+    setMobileNav(false)
+    // Event readers belong to company routes. Other sidebar destinations
+    // always render the destination, not a stale company context.
+    if (!/^\/company\//.test(loc.pathname) && panel?.kind === 'event') store.closePanel()
+  }, [loc.pathname, panel?.kind, store.closePanel])
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -57,7 +62,7 @@ export function Shell() {
 
   const mode = prefs.theme === 'System' ? 'system' : prefs.theme.toLowerCase()
   const hasPanel = panel !== null
-  const activeEvent = panel?.kind === 'event' ? eventById(panel.eventId) : null
+  const activeEvent = panel?.kind === 'event' && /^\/company\//.test(loc.pathname) ? eventById(panel.eventId) : null
 
   return (
     <div className={`app mode-${mode}${prefs.pointer ? ' pointer' : ''}${collapsed ? ' collapsed' : ''}`}>
@@ -103,7 +108,7 @@ export function Shell() {
           <main className={`panel main-panel${activeEvent ? ' sbw-context-host' : ''}`}>
             {activeEvent ? <EventCompanyContext companyId={activeEvent.companyId} selectedEventId={activeEvent.id} /> : <Outlet />}
           </main>
-          {panel?.kind === 'event' && <section className="panel side-panel"><EventPanel key={panel.eventId} /></section>}
+          {panel?.kind === 'event' && activeEvent && <section className="panel side-panel"><EventPanel key={panel.eventId} /></section>}
           {panel?.kind === 'chat' && <section className="panel side-panel"><ChatPanel /></section>}
         </div>
         <PlayerBar />
