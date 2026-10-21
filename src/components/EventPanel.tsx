@@ -259,7 +259,7 @@ function sentences(text: string) {
 /** One card per short spoken passage (like the Quartr transcript screenshot).
  * Never modify the spoken words; preserve original paragraph ids for citations.
  * Sentence timings remain attached to the correct sub-card. */
-function transcriptCards(paragraph: Paragraph): Paragraph[] {
+function transcriptCards(paragraph: Paragraph, nextStart: number): Paragraph[] {
   const list = paragraph.sents?.length
     ? paragraph.sents.map(x => ({ ...x, text: x.text.trim() }))
     : sentences(paragraph.text).map(text => ({ text: text.trim(), t: null as number | null }))
@@ -279,7 +279,8 @@ function transcriptCards(paragraph: Paragraph): Paragraph[] {
     })
     buffer = []; chars = 0
   }
-  for (const sentence of list) {
+  for (const [sentenceIndex, original] of list.entries()) {
+    const sentence = { ...original, t: original.t ?? (paragraph.start + sentenceIndex * Math.max(0, nextStart - paragraph.start) / Math.max(1, list.length)) }
     const len = sentence.text.length
     if (buffer.length && (chars + len > 510 || (buffer.length >= 5 && chars > 210))) push()
     buffer.push(sentence)
@@ -306,7 +307,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
   const live = ev.status === 'live'
   const visible = t.paragraphs.filter(p => (!live || p.start <= player.liveEdge) && (speakerFilter === null || p.speaker === speakerFilter) && (!qnaOnly || (!!t.qnaStart && p.start >= t.qnaStart)))
   const end = live ? player.liveEdge : ev.durationSec
-  const displayTurns = visible.flatMap(transcriptCards)
+  const displayTurns = visible.flatMap((paragraph, i) => transcriptCards(paragraph, visible[i + 1]?.start ?? end))
 
   const curPid = isPlaying ? [...visible].reverse().find((p) => p.start <= player.pos)?.id : undefined
 
