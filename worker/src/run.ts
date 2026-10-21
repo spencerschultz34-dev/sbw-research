@@ -19,7 +19,8 @@ import { nameSpeakers } from './speakers.ts'
 import { buildTranscript } from './shape.ts'
 import { existing, save, storeReady, uploadAudio } from './store.ts'
 
-interface Company { symbol: string; exchange: string; name: string; ir: string; fye: string }
+// `webcast`: a fixed page that always carries the latest call (Apple's, for one), tried for the newest call only.
+interface Company { symbol: string; exchange: string; name: string; ir: string; fye: string; webcast?: string }
 interface Job { company: Company; year: number; quarter: number; date: string | null; title: string; page: string | null; urls: string[] }
 
 const { values: args } = parseArgs({
@@ -133,6 +134,7 @@ async function main() {
     log(`${c.symbol}: ${jobs.length} call(s) to do`)
     // Newest first, so a fresh call isn't stuck behind a backlog. A dry run only checks the latest call.
     const todo = jobs.sort((a, b) => Date.parse(b.date!) - Date.parse(a.date!)).slice(0, DRY ? 1 : undefined)
+    if (c.webcast && todo[0]) todo[0].urls.push(c.webcast)
     for (const j of todo) {
       if (budget-- <= 0) return log('Reached --max for this run; the rest wait for the next one')
       const prev = storeReady() && !DRY ? (await existing(c.symbol)).find((r) => r.year === j.year && r.quarter === j.quarter) : undefined

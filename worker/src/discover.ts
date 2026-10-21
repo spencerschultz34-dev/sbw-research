@@ -12,7 +12,7 @@ const MEDIA = /\.(m3u8|mp4|m4a|mp3|aac)(\?|$)/i
 const NOT_CALL = /(^|[/_.-])(ads?|preroll|intro|bumper|promo|hold|music|silence|blank|logo|poster|thumbnail)([/_.-]|$)/i
 // Links on an event page that lead to the webcast player.
 const DEBUG = !!process.env.DISCOVERY_DEBUG
-const PLAYER = /earnings-call|webcast|listen|replay|player|q4inc\.com|notified|media-server\.com|webcasts\.com|on24|cvent|onlinexperiences|webcaster|choruscall|brightcove|vimeo|medius|zoom\.us\/(rec|webinar)|livestream/i
+const PLAYER = /earnings-call|webcast|listen|replay|player|events\.q4inc\.com|notified|media-server\.com|webcasts\.com|on24|cvent|onlinexperiences|webcaster|choruscall|brightcove|vimeo|medius|zoom\.us\/(rec|webinar)|livestream/i
 
 /** Who we register as when a webcast asks for attendee details. Set WEBCAST_* in the worker's environment. */
 function attendee(env = process.env) {
