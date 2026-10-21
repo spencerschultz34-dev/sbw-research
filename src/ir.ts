@@ -14,6 +14,19 @@ async function getJson<T>(path: string, fallback: string): Promise<T> {
   return body as T
 }
 
+export interface DiscoveredIr { url: string | null; discoveredFrom: string; confidence: 'high' | 'low'; note?: string }
+const discoveryCache = new Map<string, Promise<DiscoveredIr>>()
+export function discoverIrUrl(companyWebsite: string): Promise<DiscoveredIr> {
+  const u = new URL(companyWebsite)
+  if(!['https:','http:'].includes(u.protocol)) return Promise.reject(new Error('Unsupported company URL'))
+  const path = q('discover',u.href.replace(/^http:/,'https:'))
+  if(!discoveryCache.has(path)) {
+    discoveryCache.set(path,getJson<DiscoveredIr>(path,'Could not discover investor relations source.'))
+    discoveryCache.get(path)!.catch(()=>discoveryCache.delete(path))
+  }
+  return discoveryCache.get(path)!
+}
+
 const siteCache = new Map<string, Promise<IrSite>>()
 export function loadIrSite(url: string, fresh = false): Promise<IrSite> {
   if (fresh || !siteCache.has(url)) {
