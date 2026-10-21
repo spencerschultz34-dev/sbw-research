@@ -11,7 +11,8 @@ const MEDIA = /\.(m3u8|mp4|m4a|mp3|aac)(\?|$)/i
 // Short clips that are not the call: ads, intros, hold music, player chrome.
 const NOT_CALL = /(^|[/_.-])(ads?|preroll|intro|bumper|promo|hold|music|silence|blank|logo|poster|thumbnail)([/_.-]|$)/i
 // Links on an event page that lead to the webcast player.
-const PLAYER = /webcast|listen|replay|player|q4inc\.com|notified|media-server\.com|webcasts\.com|on24|cvent|onlinexperiences|webcaster|choruscall|brightcove|vimeo|medius|zoom\.us\/(rec|webinar)|livestream/i
+const DEBUG = !!process.env.DISCOVERY_DEBUG
+const PLAYER = /earnings-call|webcast|listen|replay|player|q4inc\.com|notified|media-server\.com|webcasts\.com|on24|cvent|onlinexperiences|webcaster|choruscall|brightcove|vimeo|medius|zoom\.us\/(rec|webinar)|livestream/i
 
 /** Who we register as when a webcast asks for attendee details. Set WEBCAST_* in the worker's environment. */
 function attendee(env = process.env) {
@@ -50,8 +51,10 @@ async function tryPage(browser: Browser, url: string, timeoutMs: number, log: (m
   let page = await ctx.newPage()
   ctx.on('page', (p) => { page = p }) // players that open in a new window
   const hits: { url: string; referer: string }[] = []
+  const seenReqs: string[] = [] // for DISCOVERY_DEBUG
   ctx.on('request', (req) => {
     const u = req.url()
+    if (DEBUG && /m3u8|mpd|mp4|mp3|m4a|stream|media|video|audio|hls|manifest|webcast|player|embed/i.test(u)) seenReqs.push(`${req.resourceType()} ${u.split('?')[0]}`)
     if (!/^https?:/.test(u) || !MEDIA.test(u) || NOT_CALL.test(new URL(u).pathname)) return
     hits.push({ url: u, referer: req.headers()['referer'] ?? req.frame()?.url() ?? url })
   })
@@ -75,7 +78,13 @@ async function tryPage(browser: Browser, url: string, timeoutMs: number, log: (m
       if (cookies.length) headers.Cookie = cookies.map((c) => `${c.name}=${c.value}`).join('; ')
       return { found: { mediaUrl: hit.url, headers, pageUrl: url }, links: [] }
     }
-    return { found: null, links: await playerLinks(page) }
+    const links = await playerLinks(page)
+    if (DEBUG) {
+      log(`  now on ${page.url()}; frames: ${page.frames().map((f) => f.url().split('?')[0]).filter((u) => u !== 'about:blank').join(', ')}`)
+      log(`  media-like requests: ${[...new Set(seenReqs)].slice(0, 25).join(' | ') || 'none'}`)
+      log(`  player links: ${links.join(', ') || 'none'}; anchors: ${(await anchors(page)).join(' | ')}`)
+    }
+    return { found: null, links }
   } catch (e) {
     log(`Could not read ${url}: ${(e as Error).message.split('\n')[0]}`)
     return { found: null, links: [] }
@@ -141,6 +150,12 @@ async function play(page: Page): Promise<boolean> {
     }
   }
   return false
+}
+
+/** Every link that mentions the call or the webcast, for debugging a page the reader misses. */
+async function anchors(page: Page) {
+  const all = await page.$$eval('a[href]', (els) => els.map((e) => `${(e.textContent ?? '').trim().slice(0, 40)} -> ${(e as HTMLAnchorElement).href}`)).catch(() => [] as string[])
+  return all.filter((x) => /webcast|listen|replay|earnings|call|audio|video|play/i.test(x)).slice(0, 15)
 }
 
 /** Links and frames on the page that look like they lead to the webcast player. */

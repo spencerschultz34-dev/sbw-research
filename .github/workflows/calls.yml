@@ -59,6 +59,7 @@ jobs:
         if: github.event_name == 'pull_request' || github.event_name == 'push' || inputs.dry_run
         env:
           SYMBOL: ${{ inputs.symbol }}
+          DISCOVERY_DEBUG: 1
         run: node src/run.ts --dry-run ${SYMBOL:+--symbol "$SYMBOL"}
 
       - name: Record new calls
