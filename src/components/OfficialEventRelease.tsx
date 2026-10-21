@@ -16,7 +16,7 @@ export function useOfficialEventDocuments(event:CompanyEvent) {
   const source=useIrSource(co.cik??0,[co.ticker])
   const url=source?.url ?? (co.ticker.toUpperCase()==='MSFT'?'https://www.microsoft.com/en-us/investor/events/default':'')
   const [docs,setDocs]=useState<IrDoc[]>([])
-  const [pending,setPending]=useState(false)
+  const [pending,setPending]=useState(Boolean(url))
   const [error,setError]=useState('')
   useEffect(()=>{
     if(!url){setDocs([]);setPending(false);return}
