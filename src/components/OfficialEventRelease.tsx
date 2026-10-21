@@ -14,7 +14,7 @@ export const matchingEvent = (event:CompanyEvent, date:string|null, title:string
 export function useOfficialEventDocuments(event:CompanyEvent) {
   const co=companyById(event.companyId)
   const source=useIrSource(co.cik??0,[co.ticker])
-  const configuredUrl=source?.url ?? (co.ticker.toUpperCase()==='MSFT'?'https://www.microsoft.com/en-us/investor/events/default':'')
+  const configuredUrl=source?.url ?? (co.ticker.toUpperCase()==='MSFT'?'https://www.microsoft.com/en-us/investor/events/default':co.ticker.toUpperCase()==='HOOD'?'https://investors.robinhood.com/financials/quarterly-results':'')
   const website=co.website
   const [docs,setDocs]=useState<IrDoc[]>([])
   const [pending,setPending]=useState(Boolean(configuredUrl || website))
