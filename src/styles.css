@@ -782,3 +782,47 @@ svg .axis { fill: var(--muted); font: 9px var(--ui); }
   .sbw-print-turn p { margin:0 0 9px;orphans:3;widows:3;text-align:left;color:#26333a; }
   .sbw-print-section { break-before:page; }
 }
+
+/* SBW Research navigation and near-black professional reading surfaces */
+.app.mode-dark {
+  --bg:#08090b; --panel:#101113; --card:#17191b; --inset:#1e2124; --hover:#25282b;
+  --line:#292c2e; --line-strong:#414548; --text:#f3f3f0; --text-2:#c3c5c5; --muted:#989d9f;
+  --accent:#ac9d53; --accent-soft:rgba(172,157,83,.14); --accent-ink:#0a0d0e;
+  --s1:#265e7d; --s2:#9d813a; --s3:#5d8b8e; --s4:#6c8197; --s5:#aa945b;
+}
+.app.mode-dark .sidebar { background:#090a0b; }
+.app.mode-dark .panel { box-shadow:none; }
+.app.mode-dark .card { background:#17191b; }
+.app.mode-dark .fchip.on,.app.mode-dark .tab.on { color:#f5f3e9; }
+.wordmark .sbw-tree { width:26px;height:26px;border:0;border-radius:0;color:#aa9e56; }
+.wordmark .sbw-tree svg { width:25px;height:25px; }
+.sbw-company-link { display:inline;text-align:left;border:0;padding:0;margin:0;font:inherit;font-weight:650;color:inherit;background:none;text-decoration:none;cursor:pointer!important; }
+.sbw-company-link:hover { color:#d7c780;text-decoration:underline;text-underline-offset:3px; }
+.feed-row .sbw-company-link { width:fit-content;max-width:100%; }
+.feed-row { cursor:pointer; }
+.sbw-event-directory { width:100%;max-width:1180px;margin:0 auto;padding:26px 28px 60px;min-height:0;overflow:auto; }
+.sbw-event-directory-head { display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding:0 0 14px; }
+.sbw-event-directory-head h2 { font-size:19px; font-weight:650; }
+.sbw-event-filters { display:flex;gap:7px;margin:18px 0 24px;flex-wrap:wrap; }
+.sbw-event-directory .sec-title { margin:23px 0 12px; }
+.sbw-event-table { border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--card); }
+.sbw-event-row { border-bottom:1px solid var(--line);width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;padding:13px 16px;gap:16px;cursor:pointer!important; }
+.sbw-event-row:last-child { border-bottom:0; }
+.sbw-event-row:hover { background:var(--hover); }
+.sbw-event-name { min-width:0;font-size:13.5px;font-weight:650;color:var(--text); }
+.sbw-event-name small { display:block;color:var(--text-2);margin-top:4px;font-size:11.5px;font-weight:400; }
+.sbw-event-actions { display:flex;gap:8px;align-items:center;flex:none;color:var(--text-2); }
+.sbw-event-actions .chip { display:inline-flex;gap:5px;align-items:center; }
+.sbw-event-foot { display:flex;justify-content:flex-end;margin-top:17px; }
+.sbw-coming { max-width:780px; margin:60px auto; }
+.sbw-coming h2 { margin-bottom:13px; }
+.sbw-coming p { line-height:1.65; }
+.company-head { min-height:48px; }
+.company .tabs { min-height:41px; }
+.company .tabs .tab { font-weight:600; }
+@media (max-width:760px) {
+  .sbw-event-directory { padding:18px 14px 36px; }
+  .sbw-event-row { padding:11px 12px; }
+  .sbw-event-actions .chip { display:none; }
+  .sbw-event-directory-head { align-items:flex-start;flex-direction:column;gap:5px; }
+}
