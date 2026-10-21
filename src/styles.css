@@ -1104,3 +1104,9 @@ button.sbw-overview-event:hover{border-color:var(--line-strong);background:var(-
 .app.mode-dark .company .tabs .tab{font-size:12px;font-weight:550}
 @media(max-width:1160px){.co-overview{grid-template-columns:minmax(280px,37%) minmax(0,1fr);gap:14px;padding:15px}}
 @media(max-width:900px){.co-overview{display:block}.co-overview .co-left{margin-bottom:22px}}
+
+.sbw-source-excerpts h2{font-size:16px;font-weight:640;margin:26px 0 10px}
+.sbw-excerpt-intro{font-size:11px;color:#aeb4b9;line-height:1.5;margin-bottom:13px}
+.sbw-source-excerpts ul{list-style:disc;padding-left:26px;margin:0}
+.sbw-source-excerpts li{font-size:14px;line-height:1.54;margin:0 0 13px;padding-left:0}
+.sbw-source-excerpts .cite{vertical-align:baseline}
