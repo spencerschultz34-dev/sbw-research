@@ -1,4 +1,4 @@
-import { HashRouter, MemoryRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { PlayerProvider, StoreProvider } from './store'
 import { AuthGate } from './auth'
 import { Shell } from './components/Shell'
@@ -16,8 +16,8 @@ import { SecCompanyPage } from './pages/SecCompany'
 import { HelpPage, QueuePage, ReleaseNotesPage } from './pages/Misc'
 
 declare const __ARTIFACT__: boolean
-// The hosted app uses hash URLs so it works on any static host; the Claude preview keeps routing in memory.
-const Router = __ARTIFACT__ ? MemoryRouter : HashRouter
+// Hosted routes use real URLs, with Vercel's SPA fallback; artifact previews use memory routing.
+const Router = __ARTIFACT__ ? MemoryRouter : BrowserRouter
 
 export function App() {
   return (
