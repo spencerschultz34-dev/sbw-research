@@ -13,7 +13,7 @@ import { Avatar, Logo, Menu, Modal, ReportIcon, TimingChips, Ticker } from './ui
 import { PaperPage, SlideView } from './visuals'
 import { PagedSecRelease } from './PagedSecRelease'
 import { SourceSlidesView } from './SourceSlidesView'
-import { OfficialEventRelease } from './OfficialEventRelease'
+import { OfficialEventRelease, OfficialEventTranscript } from './OfficialEventRelease'
 import { GeneratedEventOverview } from './GeneratedEventOverview'
 
 declare const __ARTIFACT__: boolean
@@ -33,7 +33,7 @@ export function EventPanel() {
   const playingThis = player.eventId === ev.id
   const tabs: { id: PanelTab; label: string; has: boolean; count?: number }[] = [
     { id: 'overview', label: 'Overview', has: true },
-    { id: 'transcript', label: 'Transcript', has: !!ev.transcript || !!ev.call },
+    { id: 'transcript', label: 'Transcript', has: true },
     { id: 'slides', label: 'Slides', has: true },
     { id: 'report', label: 'Report', has: ev.reports.length > 0 || !!ev.filing, count: ev.reports.length > 1 ? ev.reports.length : undefined },
   ]
@@ -80,7 +80,7 @@ export function EventPanel() {
       </div>
       <div className="ep-body sbw-msft-reader">
         {tab === 'overview' && <Overview ev={ev} />}
-        {tab === 'transcript' && (ev.transcript ? <TranscriptView ev={ev} focus={panel.focus} nonce={panel.nonce} /> : <Loading ev={ev} what="transcript" />)}
+        {tab === 'transcript' && (ev.transcript ? <TranscriptView ev={ev} focus={panel.focus} nonce={panel.nonce} /> : ev.call ? <Loading ev={ev} what="transcript" /> : <OfficialEventTranscript event={ev} />)}
         {tab === 'report' && <OfficialEventRelease event={ev} fallback={ev.reports.length > 0 ? <ReportView key={ev.reports.length} ev={ev} focus={panel.focus} /> : <Loading ev={ev} what="report" />} />}
         {tab === 'slides' && (ev.slides?.length ? <SlidesView ev={ev} focus={panel.focus} /> : <SourceSlidesView ev={ev} />)}
       </div>
