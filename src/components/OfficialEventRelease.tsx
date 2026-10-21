@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FileText, ExternalLink } from 'lucide-react'
-import { loadIrSite, useIrSource, type IrDoc } from '../ir'
+import { discoverIrUrl, loadIrSite, useIrSource, type IrDoc } from '../ir'
 import { companyById } from '../data/companies'
 import type { CompanyEvent } from '../data/types'
 import { OriginalDocument } from './OriginalDocument'
@@ -14,15 +14,21 @@ export const matchingEvent = (event:CompanyEvent, date:string|null, title:string
 export function useOfficialEventDocuments(event:CompanyEvent) {
   const co=companyById(event.companyId)
   const source=useIrSource(co.cik??0,[co.ticker])
-  const url=source?.url ?? (co.ticker.toUpperCase()==='MSFT'?'https://www.microsoft.com/en-us/investor/events/default':'')
+  const configuredUrl=source?.url ?? (co.ticker.toUpperCase()==='MSFT'?'https://www.microsoft.com/en-us/investor/events/default':'')
+  const website=co.website
   const [docs,setDocs]=useState<IrDoc[]>([])
-  const [pending,setPending]=useState(Boolean(url))
+  const [pending,setPending]=useState(Boolean(configuredUrl || website))
   const [error,setError]=useState('')
   useEffect(()=>{
-    if(!url){setDocs([]);setPending(false);return}
+    if(!configuredUrl && !website){setDocs([]);setPending(false);return}
     let alive=true
+    setDocs([])
     setPending(true);setError('')
-    loadIrSite(url).then(site=>{
+    const resolved = configuredUrl ? Promise.resolve(configuredUrl) : discoverIrUrl(website!).then(x=>x.url)
+    resolved.then(url=>{
+      if(!url)throw Error('Company investor-relations documents are not indexed yet')
+      return loadIrSite(url)
+    }).then(site=>{
       if(!alive)return
       const found=site.events.filter(e=>e.type==='earnings'&&matchingEvent(event,e.date,e.title))
       const unique=new Map<string,IrDoc>()
@@ -30,7 +36,7 @@ export function useOfficialEventDocuments(event:CompanyEvent) {
       setDocs([...unique.values()])
     }).catch(e=>{if(alive)setError(e instanceof Error?e.message:'Investor relations source unavailable')}).finally(()=>{if(alive)setPending(false)})
     return()=>{alive=false}
-  },[url,event.id,event.date,event.call?.year,event.call?.quarter])
+  },[configuredUrl,website,event.id,event.date,event.call?.year,event.call?.quarter])
   return {docs,pending,error}
 }
 export function OfficialEventRelease({event,fallback}:{event:CompanyEvent;fallback:React.ReactNode}) {
