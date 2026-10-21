@@ -22,7 +22,7 @@ export type DocFormat = 'html' | 'pdf' | 'pptx' | 'docx' | 'xlsx' | 'video' | 'o
 export interface IrDoc { kind: DocKind; title: string; url: string; format: DocFormat }
 export interface IrEvent { id: string; title: string; date: string | null; type: 'earnings' | 'conference' | 'meeting' | 'other'; page: string | null; summary: string | null; documents: IrDoc[] }
 export interface IrRelease { id: string; title: string; date: string | null; url: string; summary: string | null }
-export interface IrSite { url: string; host: string; platform: 'q4' | 'microsoft' | 'generic'; events: IrEvent[]; releases: IrRelease[]; notes: string[]; fetchedAt: string }
+export interface IrSite { url: string; host: string; platform: 'q4' | 'microsoft' | 'generic' | 'verified-publisher-fallback'; events: IrEvent[]; releases: IrRelease[]; notes: string[]; fetchedAt: string }
 
 export default async function handler(req: Request): Promise<Response> {
   const q = new URL(req.url).searchParams
