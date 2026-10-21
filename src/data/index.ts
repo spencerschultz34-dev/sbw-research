@@ -155,7 +155,7 @@ function addCall(cid: string, symbol: string, exchange: string, source: string, 
   e.status = Date.parse(e.date) > TODAY.getTime() ? 'upcoming' : 'past'
   if (c.published) {
     e.call = { symbol, exchange, year: c.year, quarter: c.quarter }
-    e.hasAudio = source === 'EarningsCall'
+    e.hasAudio = source === 'EarningsCall' || source === 'SBW'
   }
   if (c.eps?.estimate != null) setMetric(e, { label: 'EPS', estimate: c.eps.estimate, actual: c.eps.actual ?? undefined, unit: '' })
 }
