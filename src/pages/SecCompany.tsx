@@ -20,13 +20,13 @@ const money = (v: number) => {
   return a >= 1e9 ? `${s}${(a / 1e9).toFixed(2)}B` : a >= 1e6 ? `${s}${(a / 1e6).toFixed(1)}M` : `${s}${a.toLocaleString('en-US')}`
 }
 
-const GROUPS: [string, (f: string) => boolean][] = [
+const GROUPS: [string, (f: SecFiling) => boolean][] = [
   ['All', () => true],
-  ['Annual', (f) => /^(10-K|20-F|40-F)/.test(f)],
-  ['Quarterly', (f) => /^10-Q/.test(f)],
-  ['Current', (f) => /^(8-K|6-K)/.test(f)],
-  ['Proxy', (f) => /^(DEF|DEFA|PRE) ?14/.test(f)],
-  ['Ownership', (f) => /^(3|4|5|SC 13|SCHEDULE 13|144)/.test(f)],
+  ['Earnings releases', (f) => /^8-K/.test(f.form) && f.items.split(',').includes('2.02')],
+  ['Interim reports', (f) => /^10-Q/.test(f.form)],
+  ['Annual reports', (f) => /^(10-K|20-F|40-F)/.test(f.form)],
+  ['Proxy statements', (f) => /^(DEF|DEFA|PRE) ?14/.test(f.form)],
+  ['Other', (f) => !(/^8-K/.test(f.form) && f.items.split(',').includes('2.02')) && !/^10-Q/.test(f.form) && !/^(10-K|20-F|40-F)/.test(f.form) && !/^(DEF|DEFA|PRE) ?14/.test(f.form)],
 ]
 
 export function SecCompanyPage(props: { cik?: string; base?: string; companyId?: string }) {
@@ -225,11 +225,12 @@ function RevenueBars({ points }: { points: SecPoint[] }) {
 
 function Filings({ filings }: { filings: SecFiling[] }) {
   const [group, setGroup] = useState('All')
-  const counts = useMemo(() => Object.fromEntries(GROUPS.map(([g, t]) => [g, filings.filter((f) => t(f.form)).length])), [filings])
+  const counts = useMemo(() => Object.fromEntries(GROUPS.map(([g, t]) => [g, filings.filter((f) => t(f)).length])), [filings])
   const test = GROUPS.find(([g]) => g === group)![1]
-  const list = filings.filter((f) => test(f.form))
+  const list = filings.filter((f) => test(f))
   return (
-    <div className="tab-body">
+    <div className="tab-body sbw-doc-directory">
+      <div className="sbw-doc-page-head"><h2>Documents</h2><span className="muted small">Official company filings · SEC EDGAR</span></div>
       <div className="filter-row">
         {GROUPS.map(([g]) => <button key={g} className={`fchip${group === g ? ' on' : ''}`} onClick={() => setGroup(g)}>{g}<em>{counts[g]}</em></button>)}
       </div>
