@@ -1,5 +1,14 @@
 {
   "rewrites": [
-    { "source": "/sec-archive/:path*", "destination": "/api/sec?type=file&path=:path*" }
+    {
+      "source": "/sec-archive/:path*",
+      "destination": "/api/sec?type=file&path=:path*"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/ingest-earnings",
+      "schedule": "0 9 * * *"
+    }
   ]
 }
