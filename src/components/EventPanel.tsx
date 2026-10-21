@@ -13,6 +13,8 @@ import { Avatar, Logo, Menu, Modal, ReportIcon, TimingChips, Ticker } from './ui
 import { PaperPage, SlideView } from './visuals'
 import { PagedSecRelease } from './PagedSecRelease'
 import { SourceSlidesView } from './SourceSlidesView'
+import { OfficialEventRelease } from './OfficialEventRelease'
+import { GeneratedEventOverview } from './GeneratedEventOverview'
 
 declare const __ARTIFACT__: boolean
 
@@ -79,7 +81,7 @@ export function EventPanel() {
       <div className="ep-body sbw-msft-reader">
         {tab === 'overview' && <Overview ev={ev} />}
         {tab === 'transcript' && (ev.transcript ? <TranscriptView ev={ev} focus={panel.focus} nonce={panel.nonce} /> : <Loading ev={ev} what="transcript" />)}
-        {tab === 'report' && (ev.reports.length > 0 ? <ReportView key={ev.reports.length} ev={ev} focus={panel.focus} /> : <Loading ev={ev} what="report" />)}
+        {tab === 'report' && <OfficialEventRelease event={ev} fallback={ev.reports.length > 0 ? <ReportView key={ev.reports.length} ev={ev} focus={panel.focus} /> : <Loading ev={ev} what="report" />} />}
         {tab === 'slides' && (ev.slides?.length ? <SlidesView ev={ev} focus={panel.focus} /> : <SourceSlidesView ev={ev} />)}
       </div>
     </div>
@@ -131,18 +133,8 @@ function Overview({ ev }: { ev: CompanyEvent }) {
             </ul>
           </section>
         ))}
-        {!ev.summary && ev.call && <VerifiedCallHighlights ev={ev} />}
-        {!ev.summary && (
-          <div className="sbw-summary-empty">
-            <h2>Primary sources</h2>
-            <p className="muted">Read the complete call and source earnings documents. All excerpts above link to their original transcript passages.</p>
-            <div className="row gap8 wrap">
-            {ev.call && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'transcript')}>Read the transcript</button>}
-            {ev.filing && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'report')}>Earnings release</button>}
-            {!ev.call && !ev.filing && <p className="muted">Nothing has been published for this event yet.</p>}
-            </div>
-          </div>
-        )}
+        {!ev.summary && <GeneratedEventOverview event={ev} />}
+
       </article>
     </div>
   )
