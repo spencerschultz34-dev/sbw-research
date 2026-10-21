@@ -264,11 +264,13 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
   const [sync, setSync] = useState(true)
   const [find, setFind] = useState<string | null>(null)
   const [hit, setHit] = useState(0)
+  const [speakerFilter, setSpeakerFilter] = useState<number | null>(null)
+  const [qnaOnly, setQnaOnly] = useState(false)
   const [sel, setSel] = useState<{ x: number; y: number; text: string; pid: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isPlaying = player.eventId === ev.id
   const live = ev.status === 'live'
-  const visible = live ? t.paragraphs.filter((p) => p.start <= player.liveEdge) : t.paragraphs
+  const visible = t.paragraphs.filter(p => (!live || p.start <= player.liveEdge) && (speakerFilter === null || p.speaker === speakerFilter) && (!qnaOnly || (!!t.qnaStart && p.start >= t.qnaStart)))
   const end = live ? player.liveEdge : ev.durationSec
 
   const curPid = isPlaying ? [...visible].reverse().find((p) => p.start <= player.pos)?.id : undefined
@@ -343,7 +345,13 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
             <button key={ch.title} className="menu-item" onClick={() => { jump(ch.start); close() }}><span>{ch.title}</span><span className="muted mono">{fmtStamp(ch.start)}</span></button>
           ))}
         </Menu>
-        <button className="text-btn chip-btn" disabled={!t.qnaStart && t.qnaStart !== 0} title={t.qnaStart || t.qnaStart === 0 ? "Jump to questions and answers" : "Q&A start not identified"} onClick={() => jump(t.qnaStart)}>Q&amp;A</button>
+        <button className={`text-btn chip-btn sbw-toolbar-filter${qnaOnly ? ' selected' : ''}`} disabled={!t.qnaStart} title={t.qnaStart ? 'Filter to the questions and answers' : 'Q&A start not identified'} onClick={() => { setQnaOnly(!qnaOnly); setHit(0) }}>Q&amp;A only</button>
+        <Menu width={260} trigger={(_o, toggle) => <button className={`text-btn chip-btn sbw-toolbar-filter${speakerFilter !== null ? ' selected' : ''}`} onClick={toggle}>Speakers <ChevronDown size={13}/></button>}>
+          {close => <>
+            <button className={`menu-item${speakerFilter === null ? ' cur' : ''}`} onClick={() => { setSpeakerFilter(null); close() }}>All speakers</button>
+            {t.speakers.map((sp, i) => <button key={i} className={`menu-item${speakerFilter === i ? ' cur' : ''}`} onClick={() => { setSpeakerFilter(i); close() }}>{sp.name}{sp.role && <small className="muted">{sp.role}</small>}</button>)}
+          </>}
+        </Menu>
         <span className="grow" />
         {find === null
           ? <button className="text-btn" onClick={() => setFind('')}><Search size={14} />Find</button>
@@ -360,6 +368,7 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
           )}
       </div>
       <div className="ep-scroll transcript" ref={scrollRef} onMouseUp={onMouseUp}>
+        {visible.length === 0 && <div className="sbw-transcript-empty">No speaker turns match these filters. <button className="text-btn" onClick={() => { setSpeakerFilter(null); setQnaOnly(false) }}>Show complete transcript</button></div>}
         {visible.map((p) => {
           const sp = t.speakers[p.speaker]
           const cur = p.id === curPid
