@@ -260,7 +260,10 @@ export function ensureTranscript(eventId: string): Promise<void> {
         const speakerKeys = Object.keys(t.speakers)
         const speakers = speakerKeys.map((k) => {
           const s = t.speakers[k]
-          return { name: s.name, role: s.title, isOperator: /operator/i.test(s.name), isAnalyst: /analyst/i.test(s.title) }
+          const opening = t.paragraphs.filter(p => p.speaker === k).slice(0, 2).flatMap(p => p.sentences.map(x => x.text)).join(' ').slice(0, 480)
+          const isOperator = /operator/i.test(s.name) || /greetings and welcome|welcome to the .*earnings.*conference call|listen.only mode|operator assistance|press star zero|press star 0/i.test(opening)
+          const isAnalyst = /analyst/i.test(s.title)
+          return { name: isOperator && /^speaker [a-z0-9]+$/i.test(s.name) ? 'Operator' : s.name, role: s.title, isOperator, isAnalyst }
         })
         let chapter = 0
         const paragraphs = t.paragraphs.map((p, i) => {
