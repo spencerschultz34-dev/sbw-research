@@ -30,7 +30,8 @@ async function db<T=Row[]>(table:string,query:string,opts:{method?:string;body?:
     const r=await fetch(uri,{method:opts.method??'GET',headers:{apikey:KEY,authorization:'Bearer '+KEY,'content-type':'application/json',...(opts.prefer?{prefer:opts.prefer}:{})},body:opts.body===undefined?undefined:JSON.stringify(opts.body),signal:AbortSignal.timeout(20000)})
     if(r.status===429||r.status>=500){if(attempt<3){await sleep(650*2**attempt);continue}}
     if(!r.ok)throw Error('Supabase '+table+' '+r.status+': '+(await r.text()).slice(0,220))
-    return (r.status===204?[]:await r.json()) as T
+    const responseText = await r.text()
+    return (responseText ? JSON.parse(responseText) : []) as T
   }
   throw Error('Supabase retry exhausted')
 }
