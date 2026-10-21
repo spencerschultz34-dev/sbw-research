@@ -34,6 +34,7 @@ export function CallView({ symbol, exchange, year, quarter }: { symbol: string; 
   const [follow, setFollow] = useState(true)
   const [audioErr, setAudioErr] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
+  const printRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setTr(null); setErr(null); setPos(0); setPlaying(false); setAudioErr(false)
@@ -68,7 +69,43 @@ export function CallView({ symbol, exchange, year, quarter }: { symbol: string; 
   if (!tr) return <Empty>Loading transcript…</Empty>
   const qna = tr.paragraphs.find((p) => p.id === tr.qnaStart)
   const pdfName = `${symbol.toUpperCase()}_FY${year}_Q${quarter}_SBW_Transcript.pdf`
-  const printTranscript = () => { document.title = pdfName.replace(/\\.pdf$/, ''); window.print() }
+  // Print in a fresh document, not inside the app's nested fixed-height scrolling panels.
+  // This prevents invisible panels from consuming paper and creating trailing blank pages.
+  // Page count is determined solely by the length of the current transcript.
+  const printTranscript = () => {
+    const source = printRef.current
+    if (!source) return
+    const win = window.open('', '_blank')
+    if (!win) { window.alert('Please allow pop-ups for SBW Research to print the transcript.'); return }
+    const doc = win.document
+    doc.title = pdfName.replace(/\\.pdf$/, '')
+    const meta = doc.createElement('meta')
+    meta.setAttribute('charset', 'utf-8')
+    doc.head.appendChild(meta)
+    const stylesheetLoads: Promise<void>[] = []
+    for (const original of document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')) {
+      const link = doc.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = original.href
+      stylesheetLoads.push(new Promise<void>((resolve) => { link.onload = () => resolve(); link.onerror = () => resolve() }))
+      doc.head.appendChild(link)
+    }
+    const standalone = doc.createElement('style')
+    standalone.textContent = [
+      'html, body { height:auto!important; min-height:0!important; overflow:visible!important; margin:0; background:white; }',
+      '.sbw-print-document { display:block!important; width:100%; margin:0 auto; }',
+      '@media print { body * { visibility:visible!important; } .sbw-print-document { position:static!important; } }'
+    ].join('\\n')
+    doc.head.appendChild(standalone)
+    const copy = source.cloneNode(true) as HTMLDivElement
+    copy.removeAttribute('aria-hidden')
+    doc.body.appendChild(copy)
+    // Wait for the compiled stylesheet before opening the native print / Save as PDF dialog.
+    void Promise.all(stylesheetLoads).then(() => doc.fonts.ready).then(() => {
+      win.focus()
+      win.print()
+    })
+  }
 
   return (
     <div className="call">
@@ -120,7 +157,7 @@ export function CallView({ symbol, exchange, year, quarter }: { symbol: string; 
           })}
         </div>
       </div>
-      <div className="sbw-print-document" aria-hidden="true">
+      <div className="sbw-print-document" ref={printRef} aria-hidden="true">
         <section className="sbw-print-cover">
           <div className="sbw-print-masthead"><span className="sbw-print-mark">SBW</span><span>Schaper, Benz &amp; Wise<br/><small>INVESTMENT COUNSEL · RESEARCH</small></span></div>
           <div className="sbw-print-cover-title"><div className="sbw-print-eyebrow">EARNINGS CALL TRANSCRIPT</div><h1>{tr.company || symbol} ({symbol.toUpperCase()})</h1><h2>Fiscal Year {year} · Quarter {quarter}</h2>{tr.date && <p>{new Date(tr.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</p>}</div>
