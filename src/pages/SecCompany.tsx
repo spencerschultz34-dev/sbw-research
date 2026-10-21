@@ -6,6 +6,8 @@ import { useStore } from '../store'
 import { fmtDayMonth } from '../format'
 import { ConsensusTable } from '../components/EventPanel'
 import { CallView } from './CallView'
+import { IrEvents, IrLatest, IrReleases, IrSourceForm } from './IrViews'
+import { useIrSource } from '../ir'
 import { archiveUrl, callExchange, isEarnings, loadCallEvents, type CallEvent, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
 import { Empty, FollowButton, Logo, TimingChips } from '../components/ui'
 import { Donut, SERIES } from '../components/visuals'
@@ -35,6 +37,7 @@ export function SecCompanyPage(props: { cik?: string; base?: string; companyId?:
   const nav = useNavigate()
   const [data, setData] = useState<SecCompany | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const ir = useIrSource(data?.cik ?? 0, data?.tickers ?? [])
 
   useEffect(() => {
     setData(null); setError(null)
@@ -48,6 +51,7 @@ export function SecCompanyPage(props: { cik?: string; base?: string; companyId?:
   if (!data) return <div className="page"><div className="page-head"><span className="page-title">Loading SEC data…</span></div></div>
 
   const ticker = data.tickers[0]
+  const full = tab === 'earnings' || tab === 'events' || tab === 'press-releases'
   const cid = props.companyId ?? ticker?.toLowerCase() ?? ''
   return (
     <div className="page company">
@@ -65,11 +69,17 @@ export function SecCompanyPage(props: { cik?: string; base?: string; companyId?:
       </div>
       <div className="tabs">
         <NavLink to={base} end className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Overview</NavLink>
+        <NavLink to={`${base}/events`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Events</NavLink>
+        {ir && <NavLink to={`${base}/press-releases`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Press releases</NavLink>}
         <NavLink to={`${base}/earnings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Earnings<span className="count">{data.filings.filter(isEarnings).length}</span></NavLink>
         <NavLink to={`${base}/filings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Filings<span className="count">{data.filings.length}</span></NavLink>
       </div>
-      <div className={tab === 'earnings' ? 'earn-wrap' : 'page-scroll'}>
-        {tab === 'filings' ? <Filings filings={data.filings} /> : tab === 'earnings' ? <Earnings d={data} /> : <Overview d={data} base={base} cid={cid} />}
+      <div className={full ? 'earn-wrap' : 'page-scroll'}>
+        {tab === 'filings' ? <Filings filings={data.filings} />
+          : tab === 'earnings' ? <Earnings d={data} />
+          : tab === 'events' ? (ir ? <IrEvents source={ir} symbol={ticker ?? ''} exchange={callExchange(data.exchanges[0])} fye={data.fiscalYearEnd || '1231'} /> : <AddIr ticker={ticker} />)
+          : tab === 'press-releases' && ir ? <IrReleases source={ir} />
+          : <Overview d={data} base={base} cid={cid} />}
       </div>
     </div>
   )
@@ -77,6 +87,7 @@ export function SecCompanyPage(props: { cik?: string; base?: string; companyId?:
 
 function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }) {
   const store = useStore()
+  const ir = useIrSource(d.cik, d.tickers)
   const next = cid ? eventsForCompany(cid).filter((e) => e.status === 'upcoming').sort((a, b) => a.date.localeCompare(b.date))[0] : undefined
   const f = d.financials
   const fy = d.fiscalYearEnd ? `${Number(d.fiscalYearEnd.slice(2))} ${MON[Number(d.fiscalYearEnd.slice(0, 2)) - 1]}` : '–'
@@ -87,6 +98,7 @@ function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }
   return (
     <div className="co-overview">
       <div className="co-left">
+        {ir && <IrLatest source={ir} cik={String(d.cik)} />}
         {next && (
           <>
             <h3 className="sec-title">Upcoming event</h3>
@@ -418,4 +430,13 @@ function Segments({ ticker }: { ticker: string }) {
       </div>
     </>
   )
+}
+
+function AddIr({ ticker }: { ticker?: string }) {
+  if (!ticker) return <Empty>This company has no ticker to link an investor relations page to.</Empty>
+  return <div className="page-scroll"><div className="narrow-col pad-top">
+    <h2 className="col-title">Add {ticker}'s investor relations page</h2>
+    <p className="muted">Add this company's investor relations website to view its events, releases and presentations.</p>
+    <IrSourceForm presetTicker={ticker} />
+  </div></div>
 }
