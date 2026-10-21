@@ -1,0 +1,4 @@
+[
+  {"symbol": "MSFT", "exchange": "NASDAQ", "name": "Microsoft", "ir": "https://www.microsoft.com/en-us/investor", "fye": "0630"},
+  {"symbol": "AAPL", "exchange": "NASDAQ", "name": "Apple", "ir": "https://investor.apple.com/investor-relations/default.aspx", "fye": "0927", "webcast": "https://www.apple.com/investor/earnings-call/"}
+]
