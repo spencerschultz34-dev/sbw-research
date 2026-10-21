@@ -4,8 +4,7 @@
 name: Earnings calls
 
 on:
-  schedule:
-    - cron: '17 */3 * * *'
+  # Scheduled recording stays disabled until explicitly approved.
   workflow_dispatch:
     inputs:
       symbol: { description: 'Only this ticker (from worker/companies.json)', required: false }
