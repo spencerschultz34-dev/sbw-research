@@ -6,7 +6,8 @@ export function OriginalDocument({url,title,format,kind}:{url:string;title:strin
   const wrapped=(()=>{try{const u=new URL(url);return u.hostname==='view.officeapps.live.com'?u.searchParams.get('src')||url:url}catch{return url}})()
   const pdf=format==='pdf'||/\.pdf(?:[?#]|$)/i.test(wrapped)
   const office=format==='pptx'||format==='docx'||/\.(pptx?|docx?)(?:[?#]|$)/i.test(wrapped)
-  const source=pdf?irPdfUrl(wrapped):office?officeViewer(wrapped):wrapped
+  const publisherBlocksProxy = /^https:\/\/investors\.robinhood\.com\/static-files\//i.test(wrapped)
+  const source=pdf?(publisherBlocksProxy?wrapped:irPdfUrl(wrapped)):office?officeViewer(wrapped):wrapped
   return <div className="sbw-original-source">
     <div className="sbw-original-source-toolbar"><span>{kind==='slides'?<Presentation size={15}/>:<FileText size={15}/>}</span>
       <strong>{title}</strong><span className="grow"/><span className="sbw-original-filetype">{pdf?'Original PDF':office?'Original Office presentation':'Original company page'}</span>
