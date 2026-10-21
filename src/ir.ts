@@ -27,6 +27,17 @@ export function discoverIrUrl(companyWebsite: string): Promise<DiscoveredIr> {
   return discoveryCache.get(path)!
 }
 
+export interface IrDiscovery { url: string | null; discoveredFrom: string; confidence: 'high' | 'low'; note?: string }
+const discovered = new Map<string, Promise<IrDiscovery>>()
+export function discoverIrSite(companyWebsite: string): Promise<IrDiscovery> {
+  if (!discovered.has(companyWebsite)) {
+    const request = getJson<IrDiscovery>(q('discover', companyWebsite), 'Unable to locate the official IR source.')
+    discovered.set(companyWebsite, request)
+    request.catch(() => discovered.delete(companyWebsite))
+  }
+  return discovered.get(companyWebsite)!
+}
+
 const siteCache = new Map<string, Promise<IrSite>>()
 export function loadIrSite(url: string, fresh = false): Promise<IrSite> {
   if (fresh || !siteCache.has(url)) {
