@@ -138,7 +138,7 @@ function QuickAccess({ onClose }: { onClose: () => void }) {
   const rows = useMemo<Row[]>(() => {
     const t = q.trim().toLowerCase()
     const out: Row[] = []
-    const comps = COMPANIES.filter((c) => !t || c.name.toLowerCase().includes(t) || c.ticker.toLowerCase().startsWith(t)).slice(0, t ? 6 : 4)
+    const comps = COMPANIES.filter((c) => !t || c.name.toLowerCase().includes(t) || c.ticker.toLowerCase().startsWith(t) || c.ticker.toLowerCase().replace(/[.\/-]/g,' ').startsWith(t)).slice(0, t ? 6 : 4)
     comps.forEach((c) => out.push({ group: 'Companies', key: c.id, label: <><Logo id={c.id} size={20} /><span>{c.name}</span><Ticker id={c.id} /></>, run: () => nav(`/company/${c.id}`) }))
     matchTickers(secList, t, 8).filter(([, tk]) => !comps.some((c) => c.ticker === tk)).slice(0, 5).forEach(([cik, tk, name]) => out.push({ group: 'All US companies', key: `sec${cik}`, label: <><span className="logo" style={{ width: 20, height: 20, background: 'var(--s1)', fontSize: 10 }}>{name[0]}</span><span>{titleCase(name)}</span><span className="chip chip-ticker">{tk}</span></>, run: () => nav(`/company/${tk.toLowerCase()}`) }))
     const evs = EVENTS.filter((e) => e.status !== 'upcoming' && COMPANIES.some((c) => c.id === e.companyId) && (!t || `${companyById(e.companyId).name} ${e.title}`.toLowerCase().includes(t))).slice(0, t ? 5 : 3)
