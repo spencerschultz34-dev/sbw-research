@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
-import { User, SlidersHorizontal, Newspaper, Rss, Terminal, ExternalLink, Tags, LogOut, Menu as MenuIcon, ChevronRight, Copy, Trash2 } from 'lucide-react'
+import { User, SlidersHorizontal, Newspaper, Rss, Terminal, ExternalLink, Tags, LogOut, Menu as MenuIcon, ChevronRight, Copy, Trash2, Globe } from 'lucide-react'
 import { useStore } from '../store'
+import { IrSourcesSettings } from './IrViews'
 import { useAuth } from '../auth'
 import { fmtDate } from '../format'
 import { Avatar, Modal, Segmented, Select, Toggle } from '../components/ui'
@@ -25,6 +26,7 @@ export function SettingsPage() {
           <NavLink to="/settings/newsletter" className="sub-item"><Newspaper size={15} />Newsletter</NavLink>
           <NavLink to="/settings/press-releases" className="sub-item"><Rss size={15} />Press releases</NavLink>
           <div className="sub-group static">Integrations</div>
+          <NavLink to="/settings/investor-relations" className="sub-item"><Globe size={15} />IR pages</NavLink>
           <NavLink to="/settings/mcp" className="sub-item"><Terminal size={15} />MCP server<ExternalLink size={12} className="push-right muted" /></NavLink>
           <div className="sub-group static">Team</div>
           <NavLink to="/settings/labels" className="sub-item"><Tags size={15} />Labels</NavLink>
@@ -38,6 +40,7 @@ export function SettingsPage() {
             {section === 'newsletter' && <Newsletter />}
             {section === 'press-releases' && <PressLangs />}
             {section === 'mcp' && <Mcp />}
+            {section === 'investor-relations' && <IrSourcesSettings />}
             {section === 'labels' && <Labels />}
           </div>
         </div>
