@@ -78,7 +78,7 @@ export function CallView({ symbol, exchange, year, quarter }: { symbol: string; 
     const win = window.open('', '_blank')
     if (!win) { window.alert('Please allow pop-ups for SBW Research to print the transcript.'); return }
     const doc = win.document
-    doc.title = pdfName.replace(/\\.pdf$/, '')
+    doc.title = pdfName.replace(/\.pdf$/, '')
     const meta = doc.createElement('meta')
     meta.setAttribute('charset', 'utf-8')
     doc.head.appendChild(meta)
@@ -95,7 +95,7 @@ export function CallView({ symbol, exchange, year, quarter }: { symbol: string; 
       'html, body { height:auto!important; min-height:0!important; overflow:visible!important; margin:0; background:white; }',
       '.sbw-print-document { display:block!important; width:100%; margin:0 auto; }',
       '@media print { body * { visibility:visible!important; } .sbw-print-document { position:static!important; } }'
-    ].join('\\n')
+    ].join('\n')
     doc.head.appendChild(standalone)
     const copy = source.cloneNode(true) as HTMLDivElement
     copy.removeAttribute('aria-hidden')
