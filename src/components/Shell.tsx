@@ -14,12 +14,15 @@ import { eventWhen } from '../format'
 import { matchTickers, titleCase, useTickers } from '../sec'
 
 export function Wordmark() {
-  return (
-    <span className="wordmark" aria-label="SBW Research">
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M5 12.5 L8 8.5 L10.5 10.5 L13.5 5.5" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-      <b>SBW</b><span>RESEARCH</span>
-    </span>
-  )
+  return <span className="wordmark" aria-label="Schaper, Benz & Wise Research">
+    <span className="sbw-tree" aria-hidden="true"><svg viewBox="0 0 120 120" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M59 111 Q59 94 56 78 Q48 81 38 90 M58 84 Q68 76 76 75 M58 95 Q45 92 39 101 M61 92 Q76 91 84 100" />
+      <path d="M58 80 L57 61 M56 71 Q43 66 33 57 M57 65 Q70 56 82 57 M45 63 L42 48 M67 62 L71 46" />
+      <path d="M15 62 Q5 55 13 44 Q6 32 22 29 Q22 16 36 18 Q43 7 54 17 Q63 6 72 17 Q84 11 90 25 Q107 23 103 39 Q116 48 105 61 Q110 75 96 80 Q94 92 80 88 Q69 98 59 87 Q48 100 36 90 Q21 94 17 80 Q5 77 15 62Z" />
+      <path d="M26 38 Q31 35 37 41 M46 28 Q51 24 55 29 M75 28 Q82 26 86 35 M88 65 Q93 59 99 61 M27 72 Q30 78 35 76" strokeWidth="1.5" />
+    </svg></span>
+    <b>SBW</b><span>RESEARCH</span>
+  </span>
 }
 
 const NAV = [

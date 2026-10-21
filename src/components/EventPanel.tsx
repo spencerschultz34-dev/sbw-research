@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Sparkle, Maximize2, Minimize2, Columns2, X, ChevronDown, Play, Pause, Copy, Download, RefreshCw, Search, ChevronLeft, ChevronRight,
   Minus, Plus, PanelLeftClose, History, Bookmark, Highlighter, ArrowUpRight, ArrowDownRight, Check, Table2, CalendarPlus, Info,
@@ -14,6 +15,7 @@ import { PaperPage, SlideView } from './visuals'
 declare const __ARTIFACT__: boolean
 
 export function EventPanel() {
+  const nav = useNavigate()
   const store = useStore()
   const player = usePlayer()
   const { panel, expanded, setExpanded, closePanel, openEvent } = store
@@ -36,7 +38,7 @@ export function EventPanel() {
     <div className="event-panel">
       <div className="ep-head">
         <Logo id={c.id} size={24} />
-        <span className="crumb">{c.name}</span>
+        <button className="crumb sbw-company-link" onClick={() => { nav(`/company/${c.id}`); closePanel() }} title={`Open ${c.name} company overview`}>{c.name}</button>
         <ChevronRight size={14} className="muted" />
         <Menu width={300} trigger={(_o, t) => (
           <button className="crumb-btn" onClick={t}>{ev.title} - {fmtDate(ev.date)}<ChevronDown size={14} /></button>
