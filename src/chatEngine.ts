@@ -40,8 +40,8 @@ export function answer(question: string, scope: string[] = [], watchlistIds: str
     const paras = EVENTS.flatMap((e) => (e.transcript?.paragraphs ?? []).map((p) => ({ e, p }))).filter(({ p }) => terms.some((t) => p.text.toLowerCase().includes(t)))
     if (!paras.length) {
       return {
-        blocks: [{ t: 'p', text: 'I could not find that in the sample documents. Try naming a company with @, or ask about a theme such as pack architecture, truck-to-rail conversion, net interest income or AI agents.' }],
-        cites: [], followups: ['What did @Northwind Beverages say about North America snacks?', 'Which companies discussed truck-to-rail conversion?', 'Compare the latest results for @SBW WL in a table'],
+        blocks: [{ t: 'p', text: 'I could not find that in the transcripts loaded so far. Open a company\'s latest call first, or name a company with @.' }],
+        cites: [], followups: ['What did @Apple Inc. say about services growth?', 'Which companies discussed AI capex?', 'Compare the latest results for @SBW WL in a table'],
       }
     }
     const byCo = new Map<string, typeof paras>()

@@ -4,7 +4,7 @@ import {
   House, Calendar, Search, Sparkle, Bookmark, LayoutGrid, Layers, Quote, ListEnd, Gift, CircleHelp, Settings,
   PanelLeftClose, PanelLeftOpen, Menu as MenuIcon, ArrowRight,
 } from 'lucide-react'
-import { COMPANIES, EVENTS } from '../data'
+import { COMPANIES, companyById, EVENTS } from '../data'
 import { useStore } from '../store'
 import { Logo, Ticker } from './ui'
 import { PlayerBar } from './PlayerBar'
@@ -102,7 +102,7 @@ export function Shell() {
         </div>
         <PlayerBar />
         <div className="bottom-strip">
-          <span className="sample-note">Sample data · fictional companies</span>
+          <span className="sample-note">Live data · SEC, EarningsCall, Finnhub</span>
           <button className="float-chat" onClick={() => (panel?.kind === 'chat' ? store.closePanel() : store.openChatPanel())}><Sparkle size={14} />Chat</button>
         </div>
       </div>
@@ -117,7 +117,7 @@ function QuickAccess({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const nav = useNavigate()
-  const { openEvent, set, prefs } = useStore()
+  const { openEvent, set, prefs, dataVersion } = useStore()
   const inputRef = useRef<HTMLInputElement>(null)
   const secList = useTickers()
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -128,9 +128,9 @@ function QuickAccess({ onClose }: { onClose: () => void }) {
     const out: Row[] = []
     const comps = COMPANIES.filter((c) => !t || c.name.toLowerCase().includes(t) || c.ticker.toLowerCase().startsWith(t)).slice(0, t ? 6 : 4)
     comps.forEach((c) => out.push({ group: 'Companies', key: c.id, label: <><Logo id={c.id} size={20} /><span>{c.name}</span><Ticker id={c.id} /></>, run: () => nav(`/company/${c.id}`) }))
-    matchTickers(secList, t, 5).forEach(([cik, tk, name]) => out.push({ group: 'US companies · SEC filings', key: `sec${cik}`, label: <><span className="logo" style={{ width: 20, height: 20, background: 'var(--s1)', fontSize: 10 }}>{name[0]}</span><span>{titleCase(name)}</span><span className="chip chip-ticker">{tk}</span></>, run: () => nav(`/sec/${cik}`) }))
-    const evs = EVENTS.filter((e) => e.status !== 'upcoming' && (!t || `${COMPANIES.find((c) => c.id === e.companyId)!.name} ${e.title}`.toLowerCase().includes(t))).slice(0, t ? 5 : 3)
-    evs.forEach((e) => out.push({ group: 'Events', key: e.id, label: <><Logo id={e.companyId} size={20} /><span>{COMPANIES.find((c) => c.id === e.companyId)!.name} · {e.title}</span></>, hint: eventWhen(e.date), run: () => openEvent(e.id) }))
+    matchTickers(secList, t, 8).filter(([, tk]) => !comps.some((c) => c.ticker === tk)).slice(0, 5).forEach(([cik, tk, name]) => out.push({ group: 'All US companies', key: `sec${cik}`, label: <><span className="logo" style={{ width: 20, height: 20, background: 'var(--s1)', fontSize: 10 }}>{name[0]}</span><span>{titleCase(name)}</span><span className="chip chip-ticker">{tk}</span></>, run: () => nav(`/company/${tk.toLowerCase()}`) }))
+    const evs = EVENTS.filter((e) => e.status !== 'upcoming' && COMPANIES.some((c) => c.id === e.companyId) && (!t || `${companyById(e.companyId).name} ${e.title}`.toLowerCase().includes(t))).slice(0, t ? 5 : 3)
+    evs.forEach((e) => out.push({ group: 'Events', key: e.id, label: <><Logo id={e.companyId} size={20} /><span>{companyById(e.companyId).name} · {e.title}</span></>, hint: eventWhen(e.date), run: () => openEvent(e.id) }))
     const pages: [string, string][] = [['Home', '/'], ['Calendar', '/calendar'], ['Search', '/search'], ['Chat', '/chat'], ['Saved', '/saved'], ['Workspaces', '/workspaces'], ['Watchlists', '/watchlists'], ['Keyword alerts', '/alerts'], ['Event queue', '/queue'], ['Settings', '/settings']]
     pages.filter(([l]) => !t || l.toLowerCase().includes(t)).slice(0, t ? 4 : 0).forEach(([l, p]) => out.push({ group: 'Go to', key: p, label: <span>{l}</span>, run: () => nav(p) }))
     const actions: [string, () => void][] = [
@@ -142,7 +142,7 @@ function QuickAccess({ onClose }: { onClose: () => void }) {
     actions.filter(([l]) => !t || l.toLowerCase().includes(t)).forEach(([l, run]) => out.push({ group: 'Actions', key: l, label: <span>{l}</span>, run }))
     if (t) out.push({ group: 'Search', key: 'search', label: <span>Search all documents for “{q}”</span>, run: () => nav(`/search?q=${encodeURIComponent(q)}`) })
     return out
-  }, [q, nav, openEvent, set, prefs.theme, secList])
+  }, [q, nav, openEvent, set, prefs.theme, secList, dataVersion])
 
   useEffect(() => setSel(0), [q])
   const run = (r: Row) => { r.run(); onClose() }

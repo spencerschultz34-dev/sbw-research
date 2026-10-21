@@ -32,7 +32,7 @@ export function AlertsPage() {
     return out
   }
   const cur = store.alerts.find((a) => a.id === active)
-  const hits = useMemo(() => (cur ? hitsFor(cur) : []), [cur, wlFilter, store.follows, store.watchlists]) // eslint-disable-line
+  const hits = useMemo(() => (cur ? hitsFor(cur) : []), [cur, wlFilter, store.follows, store.watchlists, store.dataVersion]) // eslint-disable-line
 
   return (
     <div className="page">

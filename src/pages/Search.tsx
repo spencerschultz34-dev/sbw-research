@@ -75,7 +75,7 @@ export function SearchPage() {
     const ord = (a: string, b: string) => (sort === 'Oldest first' ? a.localeCompare(b) : b.localeCompare(a))
     r.transcripts.sort((a, b) => ord(a.ev.date, b.ev.date)); r.slides.sort((a, b) => ord(a.ev.date, b.ev.date)); r.reports.sort((a, b) => ord(a.ev.date, b.ev.date))
     return { ...r, terms: m.terms }
-  }, [q, filters, sort, store.follows, store.watchlists]) // eslint-disable-line
+  }, [q, filters, sort, store.follows, store.watchlists, store.dataVersion]) // eslint-disable-line
 
   const counts: Record<Kind, number> = { Companies: results.companies.length, Transcripts: results.transcripts.length, Slides: results.slides.length, Reports: results.reports.length, 'Press releases': results.press.length }
   const show = (k: Kind) => !kind || kind === k

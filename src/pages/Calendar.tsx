@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, CalendarDays, CalendarPlus, Ellipsis, ListFilter, X, Copy, Check } from 'lucide-react'
-import { COMPANIES, EVENTS, TODAY } from '../data'
+import { COMPANIES, EVENTS, loadCalendar, TODAY } from '../data'
 import { companyById } from '../data/companies'
 import type { CompanyEvent, EventType } from '../data/types'
 import { useStore } from '../store'
@@ -41,7 +41,10 @@ export function CalendarPage() {
     }
     if (f.field === 'Company') return e.companyId === f.value
     return e.type === f.value
-  })), [filters, store.follows, store.watchlists])
+  })), [filters, store.follows, store.watchlists, store.dataVersion])
+
+  // Earnings dates for every US company in view come from Finnhub; filters narrow them to your lists.
+  useEffect(() => { void loadCalendar(addDays(days[0], -1), addDays(days[days.length - 1], 1)) }, [days])
 
   const byDay = useMemo(() => {
     const m = new Map<string, CompanyEvent[]>()

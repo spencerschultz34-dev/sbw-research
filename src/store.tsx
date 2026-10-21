@@ -1,7 +1,9 @@
 import { loadCloudState, saveCloudState } from './cloud'
 import { useAuth } from './auth'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { EVENTS, eventById, LIVE_OFFSET_SEC, TODAY } from './data'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { EVENTS, eventById, ensureCompanies, ensureTranscript, getVersion, subscribe, TODAY } from './data'
+import { DEFAULT_TICKERS, idFor } from './data/companies'
+import { audioUrl } from './sec'
 import type { Answer } from './chatEngine'
 
 /* ---------- Types ---------- */
@@ -47,6 +49,7 @@ export type Panel =
   | null
 
 interface AppState {
+  dataVersion: number // 2 = real companies; older saved state pointed at the sample companies
   follows: string[]
   watchlists: Watchlist[]
   folders: Folder[]
@@ -64,55 +67,30 @@ interface AppState {
   prefs: Prefs
 }
 
+const DEFAULT_IDS = DEFAULT_TICKERS.map(([t]) => idFor(t))
 const DEFAULT_STATE: AppState = {
-  follows: ['nwb', 'hbw', 'mrdb', 'virc', 'pncr', 'tslp', 'strc', 'aurs', 'clde', 'ardi', 'brwu', 'qnt'],
+  dataVersion: 2,
+  follows: DEFAULT_IDS,
   watchlists: [
-    { id: 'wl-sbw', name: 'SBW WL', companyIds: ['nwb', 'hbw', 'mrdb', 'virc', 'pncr', 'tslp', 'kstl', 'hlxt', 'solf', 'orbt'] },
-    { id: 'wl-staples', name: 'Consumer staples peers', companyIds: ['nwb', 'hbw', 'virc', 'solf'] },
+    { id: 'wl-sbw', name: 'SBW WL', companyIds: DEFAULT_IDS },
+    { id: 'wl-staples', name: 'Consumer staples', companyIds: ['ko', 'pep', 'cost'] },
   ],
-  folders: [{ id: 'f-ideas', name: 'Q4 ideas', shared: false }, { id: 'f-team', name: 'Team: consumer', shared: true }],
-  saved: [
-    { id: 's1', type: 'transcript', eventId: 'orbt-gscc', ref: 'orbt-gscc-p3', highlight: 'This was a quarter of disciplined execution.', savedAt: '2026-09-19T14:00:00Z' },
-    { id: 's2', type: 'transcript', eventId: 'nwb-q32026', ref: 'p15', highlight: 'On productivity, yes, we\'re on track for $1.5 billion this year', folderId: 'f-ideas', savedAt: '2026-10-08T16:00:00Z' },
-    { id: 's3', type: 'transcript', eventId: 'nwb-q32026', ref: 'p12', savedAt: '2026-10-08T15:40:00Z' },
-    { id: 's4', type: 'slide', eventId: 'nwb-q32026', ref: 'capex', savedAt: '2026-10-08T15:20:00Z' },
-    { id: 's5', type: 'report', eventId: 'nwb-q32026', ref: 'nwb-q3-er:1', savedAt: '2026-10-08T15:10:00Z' },
-  ],
-  workspaces: [
-    { id: 'w1', name: 'Northwind: Q3 2026 notes', visibility: 'Private', labels: ['Notes from call'], companyTags: ['nwb'], team: false, updatedAt: '2026-10-08T17:00:00Z',
-      blocks: [
-        { id: 'b1', kind: 'text', text: 'Organic growth re-accelerated to 3.1%. North America snacks still the swing factor; mgmt not calling a recovery yet.' },
-        { id: 'b2', kind: 'saved', savedId: 's3' },
-        { id: 'b3', kind: 'text', text: 'Follow-up: check pack-architecture read-through for Harbor Wholesale and Vireo.' },
-      ] },
-    { id: 'w2', name: 'Consumer staples: earnings preview', visibility: 'Team', labels: ['Earnings preview'], companyTags: ['virc', 'hbw'], team: true, updatedAt: '2026-10-05T12:00:00Z', blocks: [{ id: 'b1', kind: 'text', text: 'Key questions for Vireo AGM and Harbor October sales.' }] },
-  ],
+  folders: [{ id: 'f-ideas', name: 'Ideas', shared: false }],
+  saved: [],
+  workspaces: [],
   labels: ['Company update', 'Earnings preview', 'Earnings results', 'Idea draft', 'Internal review / meeting', 'Investment case', 'Notes from call', 'Other', 'Portfolio meeting', 'Preparation'],
-  alerts: [
-    { id: 'k1', keyword: 'truck-to-rail conversion', scope: 'All companies', watchlistIds: [], docTypes: ['Transcripts', 'Slides', 'Reports'], enabled: true },
-    { id: 'k2', keyword: 'pack architecture', scope: 'Watchlists', watchlistIds: ['wl-sbw'], docTypes: ['Transcripts'], enabled: true },
-    { id: 'k3', keyword: '"orbital compute"', scope: 'All companies', watchlistIds: [], docTypes: ['Transcripts', 'Slides'], enabled: true },
-  ],
-  chats: [
-    { id: 'c-auto', title: 'Watchlist earnings transcript changes', date: '2026-10-13T11:00:00Z', unread: true, automationId: 'a1',
-      messages: [{ role: 'user', text: 'Summarize what changed versus the prior event for each company in @SBW WL that reported since the last run.' }, { role: 'assistant', text: '', answerId: 'auto' }] },
-    { id: 'c1', title: 'Northwind North America snacks recovery', date: '2026-10-08T18:00:00Z', messages: [{ role: 'user', text: 'What did @Northwind Beverages say about the North America snacks recovery?', scope: ['nwb'] }, { role: 'assistant', text: '', answerId: 'company:nwb' }] },
-    { id: 'c2', title: 'Pinecrest truck-to-rail conversion outlook', date: '2026-09-29T15:00:00Z', messages: [{ role: 'user', text: 'Truck-to-rail conversion outlook at @Pinecrest Rail', scope: ['pncr'] }, { role: 'assistant', text: '', answerId: 'company:pncr' }] },
-    { id: 'c3', title: 'Stratus Cloud RPO conversion', date: '2026-09-28T15:00:00Z', messages: [{ role: 'user', text: 'Stratus Cloud remaining performance obligations conversion expectations', scope: ['strc'] }, { role: 'assistant', text: '', answerId: 'company:strc' }] },
-  ],
+  alerts: [],
+  chats: [],
   prompts: [
     { id: 'pr1', name: 'Earnings delta vs prior quarter', text: 'For @Company, compare the latest earnings call with the prior one. Flag changes in guidance, tone and KPIs in a table.' },
     { id: 'pr2', name: 'Bull and bear points', text: 'List the three strongest bull and bear points for @Company from the latest event, with citations.' },
     { id: 'pr3', name: 'Peer read-through', text: 'What does the latest event from @Company imply for its peers in @Watchlist?' },
   ],
-  automations: [
-    { id: 'a1', name: 'Watchlist earnings transcript changes', mode: 'Trigger', scope: 'SBW WL', trigger: 'Earnings calls', startDoc: 'Transcript', cadence: '', prompt: 'Flag what changed versus the prior event in language, tone and KPIs.', notify: ['Chat', 'Activity feed', 'Email'], enabled: true, lastRun: '2026-10-13T11:00:00Z' },
-    { id: 'a2', name: 'Weekly staples read-through', mode: 'Schedule', scope: 'Consumer staples peers', trigger: '', startDoc: '', cadence: 'Weekly', prompt: 'Since the last run, summarize commentary across the watchlist and assess read-throughs to our positions.', notify: ['Chat'], enabled: false },
-  ],
-  queue: ['nwb-q32026', 'hbw-msu-september'],
-  progress: { 'pncr-rail': 900, 'strc-q22026': 2000, 'orbt-gscc': 400, 'hbw-q4fy26': 1300 },
+  automations: [],
+  queue: [],
+  progress: {},
   readActivity: [],
-  recentSearches: ['pack architecture', 'truck-to-rail conversion', 'cyber security', 'orbital compute', 'net interest income'],
+  recentSearches: [],
   prefs: {
     theme: 'Dark', timeFormat: '12', timezone: 'UTC-05:00 - Central Time - Chicago', pointer: true, hideEmptyAutomations: true,
     edge: true, daily: true, weekly: false, recapWatchlist: 'Followed companies', deliveryHour: 7, languages: ['English'],
@@ -121,10 +99,16 @@ const DEFAULT_STATE: AppState = {
 }
 
 const KEY = 'sbw-research-state-v1'
+/** State saved before the switch to real data refers to sample companies: keep the person's settings, drop the rest. */
+function migrate(saved: Partial<AppState>): AppState {
+  if (saved.dataVersion === DEFAULT_STATE.dataVersion) return { ...DEFAULT_STATE, ...saved }
+  const keep = (k: 'prefs' | 'labels' | 'prompts') => saved[k] ?? DEFAULT_STATE[k]
+  return { ...DEFAULT_STATE, prefs: { ...DEFAULT_STATE.prefs, ...keep('prefs') as Prefs }, labels: keep('labels') as string[], prompts: keep('prompts') as Prompt[] }
+}
 function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return { ...DEFAULT_STATE, ...JSON.parse(raw) }
+    if (raw) return migrate(JSON.parse(raw))
   } catch { /* storage unavailable */ }
   return DEFAULT_STATE
 }
@@ -145,6 +129,7 @@ interface Store extends AppState {
   setQuickOpen: (v: boolean) => void
   isFollowed: (cid: string) => boolean
   resetDemo: () => void
+  dataVersion: number
   syncState: 'local' | 'loading' | 'synced' | 'error'
 }
 
@@ -158,6 +143,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<string | null>(null)
   const [quickOpen, setQuickOpen] = useState(false)
   const toastTimer = useRef<number>()
+  // Live data arrives after the first render; this re-renders every screen when it does.
+  const dataVersion = useSyncExternalStore(subscribe, getVersion)
+  const tracked = useMemo(() => [...new Set([...state.follows, ...state.watchlists.flatMap((w) => w.companyIds)])], [state.follows, state.watchlists])
+  useEffect(() => { void ensureCompanies(tracked) }, [tracked])
 
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* ignore */ }
@@ -173,7 +162,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loadCloudState(userId)
       .then(async (data) => {
         if (cancelled) return
-        if (data) setState({ ...DEFAULT_STATE, ...(data as Partial<AppState>) })
+        if (data) setState(migrate(data as Partial<AppState>))
         else await saveCloudState(userId, state)
         setSyncedFor(userId)
       })
@@ -210,6 +199,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toast, notify,
     quickOpen, setQuickOpen,
     isFollowed: (cid) => state.follows.includes(cid),
+    dataVersion,
     syncState: !userId ? 'local' : syncError ? 'error' : syncedFor === userId ? 'synced' : 'loading',
     resetDemo: () => { try { localStorage.removeItem(KEY) } catch { /* ignore */ } setState(DEFAULT_STATE) },
   }
@@ -243,36 +233,25 @@ export const usePlayer = () => useContext(PCtx)!
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const store = useStore()
   const [st, setSt] = useState<PlayerState>({ eventId: null, pos: 0, playing: false, speed: 1, volume: 0.8 })
-  const [liveEdge, setLiveEdge] = useState(LIVE_OFFSET_SEC)
+  const [duration, setDuration] = useState(0)
+  const audio = useRef<HTMLAudioElement | null>(null)
   const ev = st.eventId ? eventById(st.eventId) : undefined
-  const isLive = ev?.status === 'live'
-  const duration = isLive ? liveEdge : ev?.durationSec ?? 0
 
-  useEffect(() => {
-    const id = window.setInterval(() => setLiveEdge((x) => x + 0.5), 500)
-    return () => window.clearInterval(id)
-  }, [])
-
-  useEffect(() => {
-    if (!st.playing) return
-    const id = window.setInterval(() => {
-      setSt((s) => {
-        const e = s.eventId ? eventById(s.eventId) : undefined
-        if (!e) return s
-        const live = e.status === 'live'
-        let pos = s.pos + 0.25 * s.speed
-        let speed = s.speed
-        const end = live ? liveEdge : e.durationSec
-        if (pos >= end) {
-          pos = end
-          if (live) speed = 1 // catching up to live resets speed
-          else return { ...s, pos, playing: false }
-        }
-        return { ...s, pos, speed }
-      })
-    }, 250)
-    return () => window.clearInterval(id)
-  }, [st.playing, liveEdge])
+  // One audio element for the whole app, streaming the call from /api/calls.
+  const el = () => {
+    if (!audio.current) {
+      const a = new Audio()
+      a.preload = 'metadata'
+      a.addEventListener('timeupdate', () => setSt((s) => ({ ...s, pos: a.currentTime })))
+      a.addEventListener('play', () => setSt((s) => ({ ...s, playing: true })))
+      a.addEventListener('pause', () => setSt((s) => ({ ...s, playing: false })))
+      a.addEventListener('loadedmetadata', () => { if (Number.isFinite(a.duration)) setDuration(a.duration) })
+      a.addEventListener('error', () => { setSt((s) => ({ ...s, playing: false })); store.notify('Audio for this call is not available on the current EarningsCall plan.') })
+      audio.current = a
+    }
+    return audio.current
+  }
+  useEffect(() => { if (audio.current) { audio.current.playbackRate = st.speed; audio.current.volume = st.volume } }, [st.speed, st.volume])
 
   // Save listening progress every few seconds
   const lastSaved = useRef(0)
@@ -283,21 +262,30 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     store.set('progress', (p) => ({ ...p, [id]: Math.floor(st.pos) }))
   }, [st.pos, st.eventId]) // eslint-disable-line
 
+  const total = duration || ev?.durationSec || 0
   const api = useMemo<PlayerApi>(() => ({
     ...st,
-    duration, isLive, liveEdge,
+    duration: total, isLive: false, liveEdge: 0,
     play: (eventId, at) => {
       const e = eventById(eventId)
-      const start = at ?? (e?.status === 'live' ? LIVE_OFFSET_SEC : store.progress[eventId] ?? 0)
-      setSt((s) => ({ ...s, eventId, pos: start, playing: true, speed: e?.status === 'live' ? 1 : s.speed }))
+      if (!e?.call) return
+      void ensureTranscript(eventId)
+      const a = el()
+      const src = audioUrl(e.call.symbol, e.call.exchange, e.call.year, e.call.quarter)
+      const start = at ?? store.progress[eventId] ?? 0
+      if (!a.src.endsWith(src)) { a.src = src; setDuration(0) }
+      a.currentTime = start
+      a.playbackRate = st.speed
+      setSt((s) => ({ ...s, eventId, pos: start }))
+      a.play().catch(() => setSt((s) => ({ ...s, playing: false })))
     },
-    toggle: () => setSt((s) => ({ ...s, playing: !s.playing })),
-    seek: (sec) => setSt((s) => ({ ...s, pos: Math.max(0, Math.min(sec, duration)) })),
-    skip: (d) => setSt((s) => ({ ...s, pos: Math.max(0, Math.min(s.pos + d, duration)) })),
+    toggle: () => { const a = audio.current; if (!a) return; if (a.paused) void a.play().catch(() => {}); else a.pause() },
+    seek: (sec) => { const a = audio.current; if (a) a.currentTime = Math.max(0, Math.min(sec, total || sec)) },
+    skip: (d) => { const a = audio.current; if (a) a.currentTime = Math.max(0, Math.min(a.currentTime + d, total || a.currentTime + d)) },
     setSpeed: (speed) => setSt((s) => ({ ...s, speed })),
     setVolume: (volume) => setSt((s) => ({ ...s, volume })),
-    close: () => setSt((s) => ({ ...s, eventId: null, playing: false })),
-  }), [st, duration, isLive, liveEdge, store.progress])
+    close: () => { audio.current?.pause(); setSt((s) => ({ ...s, eventId: null, playing: false })) },
+  }), [st, total, store.progress]) // eslint-disable-line
 
   return <PCtx.Provider value={api}>{children}</PCtx.Provider>
 }

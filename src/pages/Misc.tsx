@@ -69,7 +69,7 @@ export function HelpPage() {
     <div className="page">
       <div className="page-head"><span className="page-title">Help &amp; support</span></div>
       <div className="page-scroll"><div className="narrow-col">
-        <p className="muted">This is a working prototype with fictional sample companies. Questions or feedback: reply in the project thread.</p>
+        <p className="muted">Companies, calls and filings are real, loaded from the SEC, EarningsCall and Finnhub. Questions or feedback: reply in the project thread.</p>
         {tips.map(([t, b]) => <div key={t} className="card pad"><b>{t}</b><p className="muted">{b}</p></div>)}
       </div></div>
     </div>

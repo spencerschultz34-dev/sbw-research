@@ -92,7 +92,7 @@ export function ChatThread({ chatId, compact }: { chatId?: string; compact?: boo
   const endRef = useRef<HTMLDivElement>(null)
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [chat?.messages.length, thinking])
 
-  const initialScope = params.get('scope') ? [params.get('scope')!] : store.panel?.kind === 'event' ? [eventById(store.panel.eventId)!.companyId] : []
+  const initialScope = params.get('scope') ? [params.get('scope')!] : store.panel?.kind === 'event' && eventById(store.panel.eventId) ? [eventById(store.panel.eventId)!.companyId] : []
 
   const send = (text: string, scope: string[], model: string, web: boolean, files: string[], wl: string[]) => {
     const user: ChatMessage = { role: 'user', text, scope, model, web, files }
@@ -185,7 +185,7 @@ function AnswerView({ a, onFollow }: { a?: Answer; onFollow: (t: string) => void
           <div className="source-list">
             {a.cites.map((c) => (
               <button key={c.n} className="source" onClick={() => open(c.n)}>
-                <span className="cite">{c.n}</span><Logo id={eventById(c.eventId)!.companyId} size={16} /><span className="trunc">{c.label}</span>
+                <span className="cite">{c.n}</span>{eventById(c.eventId) && <Logo id={eventById(c.eventId)!.companyId} size={16} />}<span className="trunc">{c.label}</span>
               </button>
             ))}
           </div>
@@ -216,7 +216,7 @@ function Composer({ onSend, initialScope, initialText, compact, prefill = true }
   const [pq, setPq] = useState('')
   const ta = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const placeholder = compact ? 'Ask about this event or any company' : "Provide an overview of Northwind Beverages' main business segments."
+  const placeholder = compact ? 'Ask about this event or any company' : "What did Microsoft say about Azure growth on its latest call?"
 
   const insertMention = (label: string) => {
     setText((t) => t.replace(/@[\w ]*$/, '') + `@${label} `)

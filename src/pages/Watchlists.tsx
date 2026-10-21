@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Menu as MenuIcon, FileDown, EllipsisVertical, Sparkle, Calendar } from 'lucide-react'
 import { COMPANIES, EVENTS } from '../data'
+import { idFor, upsertCompany } from '../data/companies'
+import { matchTickers, titleCase, useTickers } from '../sec'
 import { companyById } from '../data/companies'
 import { uid, useStore } from '../store'
 import { eventWhen } from '../format'
@@ -117,7 +119,12 @@ export function WatchlistsPage() {
 
 function AddCompanies({ ids, onToggle }: { ids: string[]; onToggle: (id: string) => void }) {
   const [q, setQ] = useState('')
-  const list = COMPANIES.filter((c) => `${c.name} ${c.ticker}`.toLowerCase().includes(q.toLowerCase()))
+  const sec = useTickers()
+  // Companies already in the app first, then any US-listed company from the SEC list.
+  const known = COMPANIES.filter((c) => `${c.name} ${c.ticker}`.toLowerCase().includes(q.toLowerCase()))
+  const more = q.trim() ? matchTickers(sec, q, 20).map(([, tk, name]) => ({ id: idFor(tk), name: titleCase(name) })).filter((x) => !known.some((c) => c.id === x.id)) : []
+  more.forEach((x) => upsertCompany(x.id, { name: x.name }, false))
+  const list = [...known, ...more.map((x) => companyById(x.id))]
   return (
     <>
       <div className="find big"><Search size={15} /><input id="add-co" autoFocus placeholder="Search by name or ticker" value={q} onChange={(e) => setQ(e.target.value)} /></div>

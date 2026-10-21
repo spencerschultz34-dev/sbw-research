@@ -1,3 +1,4 @@
+import type { CompanyEvent } from '../data/types'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronRight, ListEnd, Check } from 'lucide-react'
@@ -44,7 +45,7 @@ export function Home() {
   const feed = useMemo(() => activityFeed().filter((a) => ids.has(a.companyId)).filter((a) => {
     const live = a.id.endsWith('-live')
     return live ? types.includes('live') : a.docType === 'transcript' ? types.includes('audio') : types.includes(a.docType)
-  }), [ids, types])
+  }), [ids, types, store.dataVersion])
 
   // group by day, then stack consecutive items of the same event in one card
   const groups = useMemo(() => {
@@ -60,7 +61,7 @@ export function Home() {
     return out
   }, [feed])
 
-  const latest = EVENTS.filter((e) => e.status !== 'upcoming' && ids.has(e.companyId) && e.headline && new Date(e.date) <= new Date(TODAY.getTime() + 8 * 3600000)).slice(0, 4)
+  const latest = EVENTS.filter((e) => e.status !== 'upcoming' && ids.has(e.companyId) && (e.call || e.filing) && new Date(e.date) <= new Date(TODAY.getTime() + 8 * 3600000)).slice(0, 4)
   const upcoming = EVENTS.filter((e) => e.status === 'upcoming' && ids.has(e.companyId) && new Date(e.date) > new Date(TODAY.getTime() + 8 * 3600000)).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6)
   const cont = Object.entries(store.progress).map(([id, pos]) => ({ ev: eventById(id), pos })).filter((x) => x.ev && x.pos > 30 && x.pos < x.ev.durationSec - 30).slice(0, 3)
 
@@ -105,7 +106,7 @@ export function Home() {
                     <div className="ev-card-id"><b>{companyById(e.companyId).name}</b><small>{e.title} - {eventWhen(e.date)}</small></div>
                     <ContentChips ev={e} />
                   </div>
-                  {e.status === 'live' ? <div className="inset live-inset"><span className="live-badge"><i />LIVE</span>Call in progress. Listen live and follow the transcript.</div> : <div className="inset">{e.headline}</div>}
+                  {e.status === 'live' ? <div className="inset live-inset"><span className="live-badge"><i />LIVE</span>Call in progress. Listen live and follow the transcript.</div> : <ConsensusOrNote e={e} />}
                 </div>
               ))}
             </div>
@@ -180,6 +181,22 @@ function ContinueCard({ id, pos }: { id: string; pos: number }) {
         </svg>
       </div>
       <span className="muted small">{fmtDur(ev.durationSec - pos)} left</span>
+    </div>
+  )
+}
+
+/** Beat/miss when the numbers are in; otherwise what has been published. */
+function ConsensusOrNote({ e }: { e: CompanyEvent }) {
+  const m = e.metrics?.filter((x) => x.actual != null) ?? []
+  if (e.headline) return <div className="inset">{e.headline}</div>
+  if (!m.length) return <div className="inset muted">{e.call ? 'Call transcript available' : 'Earnings release filed with the SEC'}</div>
+  return (
+    <div className="inset">
+      {m.map((x) => {
+        const d = ((x.actual! - x.estimate) / Math.abs(x.estimate)) * 100
+        return <span key={x.label} className="nowrap" style={{ marginRight: 12 }}>{x.label} {x.unit === 'B' ? `${x.actual!.toFixed(1)}B` : x.actual!.toFixed(2)} <b className={d >= 0 ? 'pos' : 'neg'}>{d >= 0 ? '+' : ''}{d.toFixed(1)}%</b></span>
+      })}
+      <span className="muted small">vs consensus</span>
     </div>
   )
 }

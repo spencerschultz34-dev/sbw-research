@@ -3,7 +3,7 @@ import {
   Sparkle, Maximize2, Minimize2, Columns2, X, ChevronDown, Play, Pause, Copy, Download, RefreshCw, Search, ChevronLeft, ChevronRight,
   Minus, Plus, PanelLeftClose, History, Bookmark, Highlighter, ArrowUpRight, ArrowDownRight, Check, Table2, CalendarPlus, Info,
 } from 'lucide-react'
-import { eventById, eventsForCompany, TODAY } from '../data'
+import { ensureReports, ensureTranscript, eventById, eventsForCompany, TODAY } from '../data'
 import { companyById } from '../data/companies'
 import type { CompanyEvent, Paragraph, ReportDoc } from '../data/types'
 import { usePlayer, useStore, uid, type PanelTab } from '../store'
@@ -26,9 +26,9 @@ export function EventPanel() {
   const playingThis = player.eventId === ev.id
   const tabs: { id: PanelTab; label: string; has: boolean; count?: number }[] = [
     { id: 'overview', label: 'Overview', has: true },
-    { id: 'transcript', label: 'Transcript', has: !!ev.transcript },
+    { id: 'transcript', label: 'Transcript', has: !!ev.transcript || !!ev.call },
     { id: 'slides', label: 'Slides', has: !!ev.slides },
-    { id: 'report', label: 'Report', has: ev.reports.length > 0, count: ev.reports.length > 1 ? ev.reports.length : undefined },
+    { id: 'report', label: 'Report', has: ev.reports.length > 0 || !!ev.filing, count: ev.reports.length > 1 ? ev.reports.length : undefined },
   ]
   const all = eventsForCompany(ev.companyId)
 
@@ -73,12 +73,19 @@ export function EventPanel() {
       </div>
       <div className="ep-body">
         {tab === 'overview' && <Overview ev={ev} />}
-        {tab === 'transcript' && ev.transcript && <TranscriptView ev={ev} focus={panel.focus} nonce={panel.nonce} />}
-        {tab === 'report' && ev.reports.length > 0 && <ReportView ev={ev} focus={panel.focus} />}
+        {tab === 'transcript' && (ev.transcript ? <TranscriptView ev={ev} focus={panel.focus} nonce={panel.nonce} /> : <Loading ev={ev} what="transcript" />)}
+        {tab === 'report' && (ev.reports.length > 0 ? <ReportView key={ev.reports.length} ev={ev} focus={panel.focus} /> : <Loading ev={ev} what="report" />)}
         {tab === 'slides' && ev.slides && <SlidesView ev={ev} focus={panel.focus} />}
       </div>
     </div>
   )
+}
+
+/** Transcripts and filings load the first time an event is opened. */
+function Loading({ ev, what }: { ev: CompanyEvent; what: 'transcript' | 'report' }) {
+  useEffect(() => { void (what === 'transcript' ? ensureTranscript(ev.id) : ensureReports(ev.id)) }, [ev.id, what])
+  const err = what === 'transcript' ? ev.transcriptError : undefined
+  return <div className="ep-scroll"><div className="empty">{err ?? `Loading the ${what}…`}</div></div>
 }
 
 /* ---------- Overview ---------- */
@@ -94,12 +101,12 @@ function Overview({ ev }: { ev: CompanyEvent }) {
           <div className="live-banner"><span className="live-badge"><i />LIVE</span>The call is in progress. The summary updates when the transcript is final.
             <button className="btn btn-light btn-sm" onClick={() => { player.play(ev.id); openEvent(ev.id, 'transcript') }}>Listen live</button></div>
         )}
-        <h1>{ev.headline ?? 'Summary will appear once documents are published.'}</h1>
+        <h1>{ev.headline ?? `${companyById(ev.companyId).name} ${ev.title} results`}</h1>
         {ev.metrics?.some((m) => m.actual) && (
           <>
-            <div className="bm-label">Beat/miss vs estimates in USD <Info size={13} /> <span className="muted">Updated {fmtDayMonth(ev.date).split(' ').reverse().join(' ').replace(/(\w+) (\d+)/, '$2 $1').slice(0, 6)}</span></div>
+            <div className="bm-label">Beat/miss vs estimates in USD <Info size={13} /> <span className="muted">Reported {fmtDate(ev.date)}</span></div>
             <div className="bm-chips">
-              {ev.metrics!.map((m) => {
+              {ev.metrics!.filter((m) => m.actual != null).map((m) => {
                 const d = pctChange(m.actual!, m.estimate)
                 return <span key={m.label} className="chip chip-lg">{m.label}: {fmtNum(m.actual!, m.unit)} <b className={d >= 0 ? 'pos' : 'neg'}>{d >= 0 ? '+' : ''}{d.toFixed(1)}%</b></span>
               })}
@@ -118,7 +125,13 @@ function Overview({ ev }: { ev: CompanyEvent }) {
             </ul>
           </section>
         ))}
-        {!ev.summary && ev.headline && <p className="muted">A detailed summary is not available for this event.</p>}
+        {!ev.summary && (
+          <div className="row gap8 wrap">
+            {ev.call && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'transcript')}>Read the transcript</button>}
+            {ev.filing && <button className="btn btn-light btn-sm" onClick={() => openEvent(ev.id, 'report')}>Earnings release</button>}
+            {!ev.call && !ev.filing && <p className="muted">Nothing has been published for this event yet.</p>}
+          </div>
+        )}
       </article>
     </div>
   )
@@ -152,20 +165,21 @@ export function ConsensusTable({ ev, compact }: { ev: CompanyEvent; compact?: bo
       <table className="num-table">
         <thead><tr><th>in USD</th>{past ? <><th>Actual</th><th>Estimate</th><th>Beat/miss</th></> : <><th>Estimate</th><th>{prevLabel}</th><th>Change</th></>}</tr></thead>
         <tbody>
-          {ev.metrics!.map((m) => {
-            const d = past ? pctChange(m.actual!, m.estimate) : pctChange(m.estimate, m.prior!)
-            const cls = Math.abs(d) < 1 ? '' : d > 0 ? 'pos' : 'neg'
+          {ev.metrics!.filter((m) => !past || m.actual != null).map((m) => {
+            const base = past ? m.actual : m.prior
+            const d = base == null ? null : past ? pctChange(m.actual!, m.estimate) : pctChange(m.estimate, m.prior!)
+            const cls = d == null || Math.abs(d) < 1 ? '' : d > 0 ? 'pos' : 'neg'
             return (
               <tr key={m.label}>
                 <td>{m.label}</td>
-                {past ? <><td>{fmtNum(m.actual!, m.unit)}</td><td>{fmtNum(m.estimate, m.unit)}</td></> : <><td>{fmtNum(m.estimate, m.unit)}</td><td>{fmtNum(m.prior!, m.unit)}</td></>}
-                <td className={cls}>{d >= 0 ? '+' : ''}{d.toFixed(1)}%{cls === 'pos' && <ArrowUpRight size={13} />}{cls === 'neg' && <ArrowDownRight size={13} />}</td>
+                {past ? <><td>{fmtNum(m.actual!, m.unit)}</td><td>{fmtNum(m.estimate, m.unit)}</td></> : <><td>{fmtNum(m.estimate, m.unit)}</td><td>{m.prior != null ? fmtNum(m.prior, m.unit) : '–'}</td></>}
+                <td className={cls}>{d == null ? '–' : <>{d >= 0 ? '+' : ''}{d.toFixed(1)}%</>}{cls === 'pos' && <ArrowUpRight size={13} />}{cls === 'neg' && <ArrowDownRight size={13} />}</td>
               </tr>
             )
           })}
         </tbody>
       </table>
-      {!past && <div className="consensus-foot"><span className="chip">11 analysts</span><span className="muted">Updated 9 Oct, 2026, sample consensus</span><Info size={14} className="muted" /></div>}
+      {!past && <div className="consensus-foot"><span className="muted">Analyst consensus from Finnhub</span><Info size={14} className="muted" /></div>}
     </div>
   )
 }
@@ -178,6 +192,7 @@ function sentences(text: string) {
 
 function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string; nonce?: number }) {
   const t = ev.transcript!
+  const timed = t.timed !== false
   const store = useStore()
   const player = usePlayer()
   const [sync, setSync] = useState(true)
@@ -285,9 +300,11 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
           const hls = savedHere.filter((s) => s.ref === p.id && s.highlight).map((s) => s.highlight!)
           const isSaved = savedHere.some((s) => s.ref === p.id && !s.highlight)
           const next = visible[visible.indexOf(p) + 1]?.start ?? end
-          const sents = sentences(p.text)
+          // Real transcripts carry a start time per sentence; otherwise spread the paragraph evenly.
+          const sents = p.sents?.map((x) => x.text + ' ') ?? sentences(p.text)
           const per = (next - p.start) / sents.length
-          const curSent = cur ? Math.floor((player.pos - p.start) / per) : -1
+          const startOf = (i: number) => p.sents?.[i]?.t ?? p.start + i * per
+          const curSent = !cur ? -1 : p.sents ? p.sents.reduce((k, x, i) => (x.t != null && x.t <= player.pos ? i : k), 0) : Math.floor((player.pos - p.start) / per)
           return (
             <div key={p.id} id={`para-${p.id}`} className={`para${cur ? ' cur' : ''}${sp.isAnalyst ? ' analyst' : ''}${matches[hit] === p.id ? ' found' : ''}`}>
               <div className="para-head">
@@ -295,11 +312,11 @@ function TranscriptView({ ev, focus, nonce }: { ev: CompanyEvent; focus?: string
                 <div><b>{sp.name}</b>{sp.role && <small>{sp.role}</small>}</div>
                 <span className="grow" />
                 <button className={`ghost-icon para-save${isSaved ? ' on' : ''}`} title={isSaved ? 'Saved' : 'Save paragraph'} onClick={() => !isSaved && savePara(p)}><Bookmark size={14} fill={isSaved ? 'currentColor' : 'none'} /></button>
-                <button className="stamp mono" title="Play from here" onClick={() => player.play(ev.id, p.start)}>{fmtStamp(p.start)}</button>
+                {timed && <button className="stamp mono" title="Play from here" onClick={() => ev.hasAudio && player.play(ev.id, p.start)}>{fmtStamp(p.start)}</button>}
               </div>
               <p data-pid={p.id}>
                 {sents.map((s, i) => (
-                  <span key={i} className={`sent${i === curSent ? ' now' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; player.play(ev.id, p.start + i * per) }}>
+                  <span key={i} className={`sent${i === curSent ? ' now' : ''}`} onClick={() => { if (window.getSelection()?.toString()) return; if (timed && ev.hasAudio) player.play(ev.id, startOf(i)) }}>
                     <Marked text={s} highlights={hls} find={find ?? ''} />
                   </span>
                 ))}
@@ -377,6 +394,23 @@ function ReportView({ ev, focus }: { ev: CompanyEvent; focus?: string }) {
   }, [focus]) // eslint-disable-line
   const pages = doc.pages
   const saved = store.saved.some((s) => s.type === 'report' && s.ref === `${doc.id}:${page}`)
+  if (doc.url) return (
+    <div className="doc-view">
+      <div className="doc-toolbar">
+        <Menu width={280} trigger={(_o, t) => <button className="text-btn" onClick={t}>{doc.title}{doc.form && <span className="form-chip">{doc.form}</span>}<ChevronDown size={14} /></button>}>
+          {(close) => ev.reports.map((r) => (
+            <button key={r.id} className={`menu-item${r.id === doc.id ? ' cur' : ''}`} onClick={() => { setDoc(r); close() }}>
+              <span>{r.title}</span>{r.form && <span className="form-chip">{r.form}</span>}
+            </button>
+          ))}
+        </Menu>
+        <button className={`ghost-icon${saved ? ' on' : ''}`} title="Save document" onClick={() => { if (!saved) { store.set('saved', (s) => [{ id: uid('s'), type: 'report', eventId: ev.id, ref: `${doc.id}:0`, savedAt: TODAY.toISOString() }, ...s]); store.notify('Document saved') } }}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'} /></button>
+        <span className="grow" />
+        <a className="text-btn" href={doc.url} target="_blank" rel="noreferrer">Open<ArrowUpRight size={13} /></a>
+      </div>
+      <iframe key={doc.url} className="earn-frame" title={doc.title} src={doc.url} />
+    </div>
+  )
   return (
     <div className="doc-view">
       <div className="doc-toolbar">

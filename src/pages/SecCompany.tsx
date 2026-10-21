@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink, useParams } from 'react-router-dom'
-import { ExternalLink, FileText, Headphones, Landmark } from 'lucide-react'
+import { NavLink, useNavigate, useParams } from 'react-router-dom'
+import { ExternalLink, FileText, Headphones, Landmark, Sparkle } from 'lucide-react'
+import { companyById, eventsForCompany } from '../data'
+import { useStore } from '../store'
+import { fmtDayMonth } from '../format'
+import { ConsensusTable } from '../components/EventPanel'
 import { CallView } from './CallView'
 import { archiveUrl, callExchange, isEarnings, loadCallEvents, type CallEvent, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
-import { Empty } from '../components/ui'
+import { Empty, FollowButton, Logo, TimingChips } from '../components/ui'
 import { Donut, SERIES } from '../components/visuals'
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -23,8 +27,12 @@ const GROUPS: [string, (f: string) => boolean][] = [
   ['Ownership', (f) => /^(3|4|5|SC 13|SCHEDULE 13|144)/.test(f)],
 ]
 
-export function SecCompanyPage() {
-  const { cik = '', tab = 'overview' } = useParams()
+export function SecCompanyPage(props: { cik?: string; base?: string; companyId?: string }) {
+  const params = useParams()
+  const cik = props.cik ?? params.cik ?? ''
+  const tab = params.tab ?? 'overview'
+  const base = props.base ?? `/sec/${cik}`
+  const nav = useNavigate()
   const [data, setData] = useState<SecCompany | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -40,30 +48,36 @@ export function SecCompanyPage() {
   if (!data) return <div className="page"><div className="page-head"><span className="page-title">Loading SEC data…</span></div></div>
 
   const ticker = data.tickers[0]
+  const cid = props.companyId ?? ticker?.toLowerCase() ?? ''
   return (
     <div className="page company">
       <div className="company-head">
-        <span className="logo" style={{ width: 28, height: 28, background: 'var(--s1)', fontSize: 12 }}>{data.name[0]}</span>
+        {cid ? <Logo id={cid} size={28} /> : <span className="logo" style={{ width: 28, height: 28, background: 'var(--s1)', fontSize: 12 }}>{data.name[0]}</span>}
         <span className="company-name">{titleCase(data.name)}</span>
         {ticker && <span className="chip chip-ticker">{data.tickers.join(' · ')}</span>}
         {data.exchanges[0] && <span className="chip hide-narrow">{data.exchanges.join(', ')}</span>}
         <span className="chip hide-narrow">{data.industry}</span>
         <span className="grow" />
-        <span className="chip"><Landmark size={12} />SEC EDGAR</span>
+        {cid && companyById(cid).marketCap && <span className="chip hide-narrow">Market cap: {companyById(cid).marketCap}</span>}
+        <span className="chip hide-narrow"><Landmark size={12} />SEC EDGAR</span>
+        {cid && <button className="ghost-icon" title={`Ask AI about ${titleCase(data.name)}`} onClick={() => nav(`/chat?scope=${cid}`)}><Sparkle size={16} /></button>}
+        {cid && <FollowButton id={cid} small />}
       </div>
       <div className="tabs">
-        <NavLink to={`/sec/${cik}`} end className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Overview</NavLink>
-        <NavLink to={`/sec/${cik}/earnings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Earnings<span className="count">{data.filings.filter(isEarnings).length}</span></NavLink>
-        <NavLink to={`/sec/${cik}/filings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Filings<span className="count">{data.filings.length}</span></NavLink>
+        <NavLink to={base} end className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Overview</NavLink>
+        <NavLink to={`${base}/earnings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Earnings<span className="count">{data.filings.filter(isEarnings).length}</span></NavLink>
+        <NavLink to={`${base}/filings`} className={({ isActive }) => `tab${isActive ? ' on' : ''}`}>Filings<span className="count">{data.filings.length}</span></NavLink>
       </div>
       <div className={tab === 'earnings' ? 'earn-wrap' : 'page-scroll'}>
-        {tab === 'filings' ? <Filings filings={data.filings} /> : tab === 'earnings' ? <Earnings d={data} /> : <Overview d={data} cik={cik} />}
+        {tab === 'filings' ? <Filings filings={data.filings} /> : tab === 'earnings' ? <Earnings d={data} /> : <Overview d={data} base={base} cid={cid} />}
       </div>
     </div>
   )
 }
 
-function Overview({ d, cik }: { d: SecCompany; cik: string }) {
+function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }) {
+  const store = useStore()
+  const next = cid ? eventsForCompany(cid).filter((e) => e.status === 'upcoming').sort((a, b) => a.date.localeCompare(b.date))[0] : undefined
   const f = d.financials
   const fy = d.fiscalYearEnd ? `${Number(d.fiscalYearEnd.slice(2))} ${MON[Number(d.fiscalYearEnd.slice(0, 2)) - 1]}` : '–'
   const rows: [string, string | null][] = [
@@ -73,10 +87,20 @@ function Overview({ d, cik }: { d: SecCompany; cik: string }) {
   return (
     <div className="co-overview">
       <div className="co-left">
+        {next && (
+          <>
+            <h3 className="sec-title">Upcoming event</h3>
+            <div className="card pad clickable" onClick={() => store.openEvent(next.id)}>
+              <div className="co-ev-head"><div><b>{next.title}</b><small>{fmtDayMonth(next.date)}</small></div></div>
+              <TimingChips ev={next} h12={store.prefs.timeFormat === '12'} />
+              {next.metrics && <ConsensusTable ev={next} compact />}
+            </div>
+          </>
+        )}
         {d.filings.find(isEarnings) && (
           <>
             <h3 className="sec-title">Latest results</h3>
-            <NavLink to={`/sec/${cik}/earnings`} className="card pad clickable block">
+            <NavLink to={`${base}/earnings`} className="card pad clickable block">
               <b>Earnings release</b>
               <span className="muted small">Filed {day(d.filings.find(isEarnings)!.filed)} · press release and slides from the 8-K</span>
             </NavLink>
@@ -87,7 +111,7 @@ function Overview({ d, cik }: { d: SecCompany; cik: string }) {
           {rows.filter(([, v]) => v).map(([k, v]) => <div key={k} className="list-row"><span className="muted">{k}</span><span className="right">{v}</span></div>)}
           {d.website && <div className="list-row"><span className="muted">Website</span><a className="accent" href={d.website.startsWith('http') ? d.website : `https://${d.website}`} target="_blank" rel="noreferrer">{d.website.replace(/^https?:\/\//, '')}</a></div>}
         </div>
-        <div className="sec-head"><h2>Latest filings</h2><NavLink className="text-btn" to={`/sec/${cik}/filings`}>All filings</NavLink></div>
+        <div className="sec-head"><h2>Latest filings</h2><NavLink className="text-btn" to={`${base}/filings`}>All filings</NavLink></div>
         <div className="card list-card">
           {d.filings.slice(0, 6).map((x) => (
             <a key={x.url} className="list-row clickable" href={x.url} target="_blank" rel="noreferrer">
