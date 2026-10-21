@@ -6,7 +6,7 @@ import { useStore } from '../store'
 import { fmtDayMonth } from '../format'
 import { ConsensusTable } from '../components/EventPanel'
 import { CallView } from './CallView'
-import { IrLatest, IrReleases, IrSourceForm } from './IrViews'
+import { IrReleases, IrSourceForm } from './IrViews'
 import { useIrSource } from '../ir'
 import { archiveUrl, callExchange, isEarnings, loadCallEvents, type CallEvent, loadCompany, loadExhibits, secAvailable, titleCase, type SecDoc, type SecCompany, type SecFiling, type SecPoint } from '../sec'
 import { Empty, FollowButton, Logo, TimingChips } from '../components/ui'
@@ -111,7 +111,6 @@ function UnifiedEvents({ d, cid, base }: { d: SecCompany; cid: string; base: str
 
 function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }) {
   const store = useStore()
-  const ir = useIrSource(d.cik, d.tickers)
   const next = cid ? eventsForCompany(cid).filter((e) => e.status === 'upcoming').sort((a, b) => a.date.localeCompare(b.date))[0] : undefined
   const historical = cid ? eventsForCompany(cid).filter(e => e.status !== 'upcoming').sort((a,b)=>b.date.localeCompare(a.date)) : []
   const latestEvent = historical[0]
@@ -151,7 +150,6 @@ function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }
             </div>
           </div>
         ) : (d.filings.find(isEarnings) ? <NavLink to={`${base}/earnings`} className="card pad clickable block"><strong>Latest earnings release</strong><small className="muted block">Filed {day(d.filings.find(isEarnings)!.filed)} · View SEC release and supporting documents</small></NavLink> : <div className="card pad muted small">No prior earnings events indexed.</div>)}
-        {ir && <IrLatest source={ir} cik={String(d.cik)} />}
         <h3 className="sec-title">Profile</h3>
         <div className="card list-card">
           {rows.filter(([, v]) => v).map(([k, v]) => <div key={k} className="list-row"><span className="muted">{k}</span><span className="right">{v}</span></div>)}
@@ -168,10 +166,24 @@ function Overview({ d, base, cid }: { d: SecCompany; base: string; cid: string }
         </div>
       </div>
       <div className="co-right">
-        <h3 className="sec-title">Quarterly results</h3>
-        {!f || !f.revenue.length ? <div className="card pad"><span className="muted">No quarterly figures in this company's XBRL data.</span></div> : <Financials f={f} />}
+        <div className="sbw-main-overview-section"><h3 className="sec-title">Segments</h3>
+          {d.tickers[0] ? <Segments ticker={d.tickers[0]} /> : <p className="muted small">Company segment data not available.</p>}
+        </div>
+        <div className="sbw-main-overview-section">
+          <div className="sbw-right-section-heading"><h3 className="sec-title">Key documents</h3><NavLink to={`${base}/documents`} className="text-btn">See all <ChevronRight size={13}/></NavLink></div>
+          <div className="sbw-document-carousel">
+            {d.filings.filter(x=>/^(8-K|10-Q|10-K)/.test(x.form)).slice(0,4).map(doc=><a className="sbw-document-tile" key={doc.url} href={doc.url} target="_blank" rel="noreferrer">
+              <div className="sbw-document-cover"><FileText size={30}/><strong>{doc.form}</strong><span>{day(doc.filed)}</span></div>
+              <div className="sbw-document-caption"><strong>{doc.title===doc.form?describe(doc.form):doc.title}</strong><span>{day(doc.filed)} · SEC filing</span></div>
+            </a>)}
+            {!d.filings.length && <div className="card pad muted small">No source documents available.</div>}
+          </div>
+        </div>
+        <div className="sbw-main-overview-section">
+          <h3 className="sec-title">Quarterly results</h3>
+          {!f || !f.revenue.length ? <div className="card pad"><span className="muted">No quarterly figures in this company's XBRL data.</span></div> : <Financials f={f} />}
+        </div>
         {d.tickers[0] && <Consensus ticker={d.tickers[0]} />}
-        {d.tickers[0] && <Segments ticker={d.tickers[0]} />}
       </div>
     </div>
   )

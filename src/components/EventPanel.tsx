@@ -128,6 +128,7 @@ function Overview({ ev }: { ev: CompanyEvent }) {
             </ul>
           </section>
         ))}
+        {!ev.summary && ev.call && <VerifiedCallHighlights ev={ev} />}
         {!ev.summary && (
           <div className="sbw-summary-empty">
             <h2>Source materials</h2>
@@ -142,6 +143,34 @@ function Overview({ ev }: { ev: CompanyEvent }) {
       </article>
     </div>
   )
+}
+
+/** Use only actual timed transcript paragraphs — never fabricate an AI summary.
+ * Clicking an excerpt takes the analyst to the source paragraph and audio. */
+function VerifiedCallHighlights({ ev }: { ev: CompanyEvent }) {
+  const { openEvent } = useStore()
+  useEffect(() => { if (ev.call) void ensureTranscript(ev.id) }, [ev.id, ev.call])
+  if (!ev.transcript) return <section className="sbw-source-excerpts"><h2>Management commentary</h2><p className="muted small">Loading recorded call excerpts…</p></section>
+  const t = ev.transcript
+  const excerpts = t.paragraphs.filter(p => {
+    const speaker = t.speakers[p.speaker]
+    if (!speaker || speaker.isOperator || speaker.isAnalyst) return false
+    if (p.text.length < 130) return false
+    return !/forward-looking statements|safe harbor|operator instructions|recorded and archived|non-gaap measures|sec website/i.test(p.text.slice(0,180))
+  }).slice(0,5)
+  if (!excerpts.length) return <section className="sbw-source-excerpts"><h2>Management commentary</h2><p className="muted small">Read the full transcript for management's remarks.</p></section>
+  return <section className="sbw-source-excerpts">
+    <h2>Management commentary</h2>
+    <div className="sbw-excerpt-intro">Selected extracts from the recorded earnings call. These are source excerpts, not an AI-generated summary.</div>
+    <ul>
+      {excerpts.map((p,i) => {
+        const sentences = p.sents?.map(x=>x.text) ?? p.text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [p.text]
+        const quote = sentences.slice(0,3).join(' ').trim()
+        const preview = quote.length > 265 ? quote.slice(0,265).replace(/\s+\S*$/,'')+'…' : quote
+        return <li key={p.id}>{preview} <button className="cite" title={`Open ${t.speakers[p.speaker].name}'s remarks`} onClick={()=>openEvent(ev.id,'transcript',p.id)}>{i+1}</button></li>
+      })}
+    </ul>
+  </section>
 }
 
 function UpcomingOverview({ ev }: { ev: CompanyEvent }) {
@@ -421,20 +450,27 @@ function ReportView({ ev, focus }: { ev: CompanyEvent; focus?: string }) {
   const pages = doc.pages
   const saved = store.saved.some((s) => s.type === 'report' && s.ref === `${doc.id}:${page}`)
   if (doc.url) return (
-    <div className="doc-view">
+    <div className="doc-view sbw-authentic-report">
       <div className="doc-toolbar">
-        <Menu width={280} trigger={(_o, t) => <button className="text-btn" onClick={t}>{doc.title}{doc.form && <span className="form-chip">{doc.form}</span>}<ChevronDown size={14} /></button>}>
-          {(close) => ev.reports.map((r) => (
-            <button key={r.id} className={`menu-item${r.id === doc.id ? ' cur' : ''}`} onClick={() => { setDoc(r); close() }}>
-              <span>{r.title}</span>{r.form && <span className="form-chip">{r.form}</span>}
-            </button>
-          ))}
+        <button className={`ghost-icon${thumbs ? ' on' : ''}`} title={thumbs ? 'Hide document list' : 'Show document list'} onClick={() => setThumbs(!thumbs)}><PanelLeftClose size={15}/></button>
+        <span className="tb-sep"/>
+        <Menu width={300} trigger={(_o,t)=><button className="text-btn" onClick={t}>{doc.title}{doc.form && <span className="form-chip">{doc.form}</span>}<ChevronDown size={14}/></button>}>
+          {close=>ev.reports.map(rep=><button key={rep.id} className={`menu-item${rep.id===doc.id?' cur':''}`} onClick={()=>{setDoc(rep);setPage(0);close()}}><span>{rep.title}</span>{rep.form && <span className="form-chip">{rep.form}</span>}</button>)}
         </Menu>
-        <button className={`ghost-icon${saved ? ' on' : ''}`} title="Save document" onClick={() => { if (!saved) { store.set('saved', (s) => [{ id: uid('s'), type: 'report', eventId: ev.id, ref: `${doc.id}:0`, savedAt: TODAY.toISOString() }, ...s]); store.notify('Document saved') } }}><Bookmark size={15} fill={saved ? 'currentColor' : 'none'} /></button>
-        <span className="grow" />
-        <a className="text-btn" href={doc.url} target="_blank" rel="noreferrer">Open<ArrowUpRight size={13} /></a>
+        <span className="grow"/>
+        <button className={`ghost-icon${saved?' on':''}`} title="Save document" onClick={()=>{if(!saved){store.set('saved',v=>[{id:uid('s'),type:'report',eventId:ev.id,ref:`${doc.id}:0`,savedAt:TODAY.toISOString()},...v]);store.notify('Document saved')}}}><Bookmark size={15}/></button>
+        <a className="text-btn" href={doc.url} target="_blank" rel="noreferrer">Open original <ArrowUpRight size={13}/></a>
       </div>
-      <iframe key={doc.url} className="earn-frame" title={doc.title} src={doc.url} />
+      <div className="sbw-original-document-layout">
+        {thumbs && <aside className="sbw-original-doc-list" aria-label="Source documents">
+          <div className="sbw-original-doc-list-title">Documents</div>
+          {ev.reports.map((item,k)=><button key={item.id} className={`sbw-original-doc-item${item.id===doc.id?' selected':''}`} onClick={()=>{setDoc(item);setPage(0)}} title={item.title}>
+            <span className="sbw-original-doc-icon"><ReportIcon size={19}/><small>{k+1}</small></span>
+            <span className="sbw-original-doc-label">{item.title}{item.form && <small>{item.form}</small>}</span>
+          </button>)}
+        </aside>}
+        <iframe key={doc.url} className="earn-frame" title={doc.title} src={doc.url}/>
+      </div>
     </div>
   )
   return (
